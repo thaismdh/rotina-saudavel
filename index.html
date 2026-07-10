@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotina Saudável</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff3d81">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Rotina">
+<style>
+  :root{
+    --bg:#131019;
+    --card:#1e1826;
+    --primary:#ff3d81;
+    --primary-light:#3a1f33;
+    --accent:#00e5c7;
+    --text:#f2eef7;
+    --muted:#a99cc2;
+    --border:#332a44;
+    --danger:#ff6161;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:0 0 60px;
+  }
+  header{
+    background:linear-gradient(135deg,#ff3d81,#7b2ff7 60%,#00e5c7);
+    color:#fff;
+    padding:28px 20px 20px;
+    text-align:center;
+  }
+  header h1{margin:0 0 4px;font-size:1.6rem;letter-spacing:.02em;}
+  header p{margin:0;opacity:.9;font-size:.9rem;}
+  header .tagline{margin-top:8px;font-size:.8rem;opacity:.85;letter-spacing:.05em;}
+  nav{
+    display:flex;
+    max-width:640px;
+    margin:16px auto 0;
+    padding:0 16px;
+    gap:8px;
+  }
+  nav button{
+    flex:1;
+    padding:10px 6px;
+    border:none;
+    border-radius:10px;
+    background:var(--card);
+    color:var(--muted);
+    font-weight:600;
+    font-size:.85rem;
+    cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  nav button.active{
+    background:var(--primary);
+    color:#fff;
+  }
+  main{
+    max-width:640px;
+    margin:20px auto;
+    padding:0 16px;
+  }
+  .card{
+    background:var(--card);
+    border-radius:14px;
+    padding:18px 18px;
+    margin-bottom:16px;
+    box-shadow:0 1px 4px rgba(0,0,0,.06);
+    border:1px solid var(--border);
+  }
+  .card h2{
+    margin:0 0 12px;
+    font-size:1.05rem;
+    color:var(--primary);
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .row:last-child{border-bottom:none;}
+  .row .icon{font-size:1.4rem;width:32px;text-align:center;}
+  .row .info{flex:1;}
+  .row .info .title{font-weight:600;font-size:.95rem;}
+  .row .info .time{font-size:.8rem;color:var(--muted);font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;}
+  .check{
+    width:26px;height:26px;border-radius:8px;border:2px solid var(--primary);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    background:transparent;color:var(--primary);flex-shrink:0;
+  }
+  .check.done{background:var(--primary);color:#fff;}
+  .work-block{
+    background:var(--primary-light);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:.85rem;
+    color:var(--muted);
+    text-align:center;
+    margin:6px 0;
+  }
+  .timer-btn{
+    border:1px solid var(--primary);
+    background:transparent;
+    color:var(--primary);
+    border-radius:8px;
+    padding:6px 10px;
+    font-size:.78rem;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .timer-btn:hover{background:var(--primary-light);}
+  label{
+    display:block;
+    font-size:.82rem;
+    color:var(--muted);
+    margin:10px 0 4px;
+  }
+  input[type=time], input[type=number], select{
+    width:100%;
+    padding:9px 10px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    font-size:.9rem;
+    background:#1a1522;
+    color:var(--text);
+    font-family:inherit;
+  }
+  input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .save-btn{
+    margin-top:16px;
+    width:100%;
+    padding:12px;
+    background:var(--primary);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-weight:600;
+    font-size:.95rem;
+    cursor:pointer;
+  }
+  .save-btn:active{opacity:.85;}
+  .streak{
+    display:flex;
+    justify-content:space-around;
+    text-align:center;
+  }
+  .streak div span{
+    display:block;
+    font-size:1.6rem;
+    font-weight:700;
+    color:var(--primary);
+  }
+  .streak div small{color:var(--muted);font-size:.75rem;}
+  .bars{
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    height:120px;
+    margin-top:8px;
+  }
+  .bar-col{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+    height:100%;
+  }
+  .bar{
+    width:100%;
+    background:linear-gradient(180deg,var(--accent),var(--primary));
+    border-radius:6px 6px 0 0;
+    transition:height .3s;
+  }
+  .bar-col span{font-size:.7rem;color:var(--muted);margin-top:4px;}
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(0,0,0,.45);
+    display:none;align-items:center;justify-content:center;z-index:50;padding:20px;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center;
+    max-width:320px;width:100%;
+  }
+  .modal .big-time{font-size:3rem;font-weight:700;color:var(--primary);margin:10px 0;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;}
+  .modal .label{color:var(--muted);font-size:.9rem;}
+  .modal-actions{display:flex;gap:10px;margin-top:16px;}
+  .modal-actions button{
+    flex:1;padding:10px;border-radius:10px;border:none;font-weight:600;cursor:pointer;
+  }
+  .btn-start{background:var(--primary);color:#fff;}
+  .btn-stop{background:#2a2333;color:var(--text);}
+  .empty{color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0;}
+  .tag{
+    display:inline-block;background:var(--primary-light);color:var(--accent);
+    font-size:.72rem;padding:2px 8px;border-radius:20px;margin-left:6px;
+    font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐾 Rotina Saudável</h1>
+  <p id="today-label">Estudos · Exercício · Meditação</p>
+  <div class="tagline">📊 dados · ✈️ viagens · 🖤 tattoo · 💎 piercing · 💪 ativa</div>
+</header>
+
+<nav>
+  <button data-tab="hoje" class="active">Hoje</button>
+  <button data-tab="remedios">Remédios</button>
+  <button data-tab="config">Configurar</button>
+  <button data-tab="progresso">Progresso</button>
+</nav>
+
+<main>
+
+  <!-- TAB: HOJE -->
+  <section id="tab-hoje">
+    <div class="card">
+      <h2>Sua rotina de hoje</h2>
+      <div id="schedule-list"></div>
+    </div>
+  </section>
+
+  <!-- TAB: REMÉDIOS -->
+  <section id="tab-remedios" style="display:none">
+    <div class="card">
+      <h2>Alertas</h2>
+      <div class="row" style="border:none;padding:6px 0;">
+        <div class="icon">🔔</div>
+        <div class="info">
+          <div class="title">Notificações do navegador</div>
+          <div class="time" id="notif-status">Desativadas</div>
+        </div>
+        <button class="timer-btn" id="btn-enable-notif">Ativar</button>
+      </div>
+      <div class="time" style="margin-top:6px;">Funciona enquanto esta aba estiver aberta no navegador.</div>
+    </div>
+    <div class="card">
+      <h2>Vitaminas e remédios de hoje</h2>
+      <div id="remedios-list"></div>
+    </div>
+  </section>
+
+  <!-- TAB: CONFIG -->
+  <section id="tab-config" style="display:none">
+    <div class="card">
+      <h2>Seu dia</h2>
+      <div class="grid2">
+        <div>
+          <label>Acordar</label>
+          <input type="time" id="cfg-wake" value="06:30">
+        </div>
+        <div>
+          <label>Dormir</label>
+          <input type="time" id="cfg-sleep" value="22:30">
+        </div>
+        <div>
+          <label>Início do trabalho</label>
+          <input type="time" id="cfg-work-start" value="09:00">
+        </div>
+        <div>
+          <label>Fim do trabalho</label>
+          <input type="time" id="cfg-work-end" value="18:00">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Terça-feira · terapia</h2>
+      <div class="grid2">
+        <div>
+          <label>Início da terapia</label>
+          <input type="time" id="cfg-therapy-start" value="08:20">
+        </div>
+        <div>
+          <label>Fim da terapia</label>
+          <input type="time" id="cfg-therapy-end" value="09:00">
+        </div>
+      </div>
+      <label>Saída para a academia na terça (mais cedo)</label>
+      <input type="time" id="cfg-gym-leave-tue" value="06:30">
+    </div>
+
+    <div class="card">
+      <h2>Suas metas diárias</h2>
+      <label>Estudo (minutos)</label>
+      <input type="number" id="cfg-study-min" value="60" min="0" step="5">
+      <label>Prefiro estudar</label>
+      <select id="cfg-study-pref">
+        <option value="morning">De manhã (antes do trabalho)</option>
+        <option value="evening" selected>À noite (depois do trabalho)</option>
+      </select>
+
+      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia</div>
+      <label>Horário de saída de casa</label>
+      <input type="time" id="cfg-gym-leave" value="07:00">
+      <label>Tempo de deslocamento (só ida, em minutos)</label>
+      <input type="number" id="cfg-gym-travel" value="10" min="0" step="1">
+      <div class="grid2">
+        <div>
+          <label>Musculação (min)</label>
+          <input type="number" id="cfg-gym-strength" value="40" min="0" step="5">
+        </div>
+        <div>
+          <label>Cardio (min)</label>
+          <input type="number" id="cfg-gym-cardio" value="20" min="0" step="5">
+        </div>
+      </div>
+
+      <label>Meditação (minutos totais/dia)</label>
+      <input type="number" id="cfg-meditation-min" value="15" min="0" step="5">
+      <label>Como dividir a meditação</label>
+      <select id="cfg-meditation-split">
+        <option value="split" selected>Metade ao acordar, metade antes de dormir</option>
+        <option value="morning">Tudo ao acordar</option>
+        <option value="evening">Tudo antes de dormir</option>
+      </select>
+
+      <button class="save-btn" id="btn-save-config">Salvar e gerar rotina</button>
+    </div>
+
+    <div class="card">
+      <h2>Refeições (para calcular as vitaminas)</h2>
+      <div class="grid2">
+        <div>
+          <label>Café da manhã</label>
+          <input type="time" id="cfg-meal-breakfast" value="09:00">
+        </div>
+        <div>
+          <label>Almoço</label>
+          <input type="time" id="cfg-meal-lunch" value="12:30">
+        </div>
+        <div>
+          <label>Jantar</label>
+          <input type="time" id="cfg-meal-dinner" value="19:30">
+        </div>
+        <div>
+          <label>Duração média da refeição (min)</label>
+          <input type="number" id="cfg-meal-duration" value="30" min="0" step="5">
+        </div>
+      </div>
+      <label>Subtramina: minutos antes do almoço</label>
+      <input type="number" id="cfg-sub-before" value="15" min="0" step="5">
+      <label>Syntroid: minutos antes do café</label>
+      <input type="number" id="cfg-syntroid-before" value="30" min="0" step="5">
+    </div>
+  </section>
+
+  <!-- TAB: PROGRESSO -->
+  <section id="tab-progresso" style="display:none">
+    <div class="card">
+      <h2>Sua constância</h2>
+      <div class="streak">
+        <div><span id="streak-current">0</span><small>dias seguidos</small></div>
+        <div><span id="streak-best">0</span><small>melhor sequência</small></div>
+        <div><span id="streak-week">0%</span><small>últimos 7 dias</small></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Últimos 7 dias</h2>
+      <div class="bars" id="bars"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- TIMER MODAL -->
+<div class="modal-bg" id="timer-modal">
+  <div class="modal">
+    <div class="label" id="timer-label">Meditação</div>
+    <div class="big-time" id="timer-display">15:00</div>
+    <div class="modal-actions">
+      <button class="btn-start" id="timer-toggle">Iniciar</button>
+      <button class="btn-stop" id="timer-close">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_CONFIG = {
+  wake: "06:30", sleep: "22:30",
+  workStart: "09:00", workEnd: "18:00",
+  studyMin: 60, studyPref: "evening",
+  gymLeave: "07:00", gymLeaveTue: "06:30", gymTravel: 10, gymStrength: 40, gymCardio: 20,
+  meditationMin: 15, meditationSplit: "split",
+  mealBreakfast: "09:00", mealLunch: "12:30", mealDinner: "19:30", mealDuration: 30,
+  subBefore: 15, syntroidBefore: 30,
+  therapyStart: "08:20", therapyEnd: "09:00"
+};
+
+function loadConfig(){
+  const raw = localStorage.getItem('rotina_config');
+  return raw ? JSON.parse(raw) : {...DEFAULT_CONFIG};
+}
+function saveConfig(cfg){
+  localStorage.setItem('rotina_config', JSON.stringify(cfg));
+}
+function loadHistory(){
+  const raw = localStorage.getItem('rotina_history');
+  return raw ? JSON.parse(raw) : {};
+}
+function saveHistory(h){
+  localStorage.setItem('rotina_history', JSON.stringify(h));
+}
+function todayKey(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+function toMin(hhmm){
+  const [h,m] = hhmm.split(':').map(Number);
+  return h*60+m;
+}
+function toHHMM(mins){
+  mins = ((mins % 1440)+1440)%1440;
+  const h = Math.floor(mins/60), m = mins%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+
+// ---------- Schedule generation ----------
+function buildSchedule(cfg, dow){
+  const isTuesday = dow === 2;
+  const wake = toMin(cfg.wake);
+  const sleep = toMin(cfg.sleep) < wake ? toMin(cfg.sleep)+1440 : toMin(cfg.sleep);
+  const workStart = toMin(cfg.workStart);
+  const workEnd = toMin(cfg.workEnd);
+
+  const gymLeave = toMin(isTuesday && cfg.gymLeaveTue ? cfg.gymLeaveTue : cfg.gymLeave);
+  const travel = cfg.gymTravel;
+  const gymRoundTrip = travel*2 + cfg.gymStrength + cfg.gymCardio;
+  const gymEnd = gymLeave + gymRoundTrip;
+
+  const blocks = []; // {key, icon, title, start, minutes}
+
+  // Fixed appointments in the morning (gym always, therapy on Tuesdays), in order.
+  const fixedMorning = [{start: gymLeave, end: gymEnd}];
+  if(isTuesday){
+    fixedMorning.push({start: toMin(cfg.therapyStart), end: toMin(cfg.therapyEnd)});
+  }
+  fixedMorning.sort((a,b)=>a.start-b.start);
+
+  // Morning windows available for meditation/study: the gaps between waking up,
+  // the fixed appointments, and the start of work.
+  const windows = [];
+  let cursorPos = wake;
+  fixedMorning.forEach(f=>{
+    if(f.start > cursorPos) windows.push({start: cursorPos, end: f.start, cursor: cursorPos});
+    cursorPos = Math.max(cursorPos, f.end);
+  });
+  if(cursorPos < workStart) windows.push({start: cursorPos, end: workStart, cursor: cursorPos});
+  const eveningWindow = {start: workEnd, end: sleep, cursor: workEnd};
+
+  function placeInWindows(list, minutes, key, icon, title){
+    for(const w of list){
+      if(w.cursor + minutes <= w.end){
+        blocks.push({key, icon, title, start: w.cursor, minutes});
+        w.cursor += minutes;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function place(minutes, key, icon, title, pref){
+    if(minutes <= 0) return;
+    if(pref === 'morning'){
+      if(placeInWindows(windows, minutes, key, icon, title)) return;
+      if(placeInWindows([eveningWindow], minutes, key, icon, title)) return;
+    } else {
+      if(placeInWindows([eveningWindow], minutes, key, icon, title)) return;
+      if(placeInWindows(windows, minutes, key, icon, title)) return;
+    }
+    // fallback: force into the preferred slot even if it overflows a bit
+    const w = pref === 'morning' ? (windows[0] || eveningWindow) : eveningWindow;
+    blocks.push({key, icon, title, start: w.cursor, minutes});
+    w.cursor += minutes;
+  }
+
+  // Meditation split
+  let medMorning = 0, medEvening = 0;
+  if(cfg.meditationSplit === 'split'){
+    medMorning = Math.round(cfg.meditationMin/2);
+    medEvening = cfg.meditationMin - medMorning;
+  } else if(cfg.meditationSplit === 'morning'){
+    medMorning = cfg.meditationMin;
+  } else {
+    medEvening = cfg.meditationMin;
+  }
+
+  // morning meditation goes first thing after waking, in the first available window
+  if(medMorning > 0){
+    place(medMorning, 'med_morning', '🧘', 'Meditação matinal', 'morning');
+  }
+
+  // study fills remaining morning/evening room according to preference
+  place(cfg.studyMin, 'study', '📚', 'Estudo', cfg.studyPref);
+
+  // fixed gym block: travel out, strength, cardio, travel back
+  if(gymRoundTrip > 0){
+    let cursor = gymLeave;
+    if(travel > 0){
+      blocks.push({key:'gym_travel_out', icon:'🚗', title:'Deslocamento (ida)', start: cursor, minutes: travel});
+      cursor += travel;
+    }
+    if(cfg.gymStrength > 0){
+      blocks.push({key:'gym_strength', icon:'🏋️', title:'Musculação', start: cursor, minutes: cfg.gymStrength});
+      cursor += cfg.gymStrength;
+    }
+    if(cfg.gymCardio > 0){
+      blocks.push({key:'gym_cardio', icon:'🚴', title:'Cardio', start: cursor, minutes: cfg.gymCardio});
+      cursor += cfg.gymCardio;
+    }
+    if(travel > 0){
+      blocks.push({key:'gym_travel_back', icon:'🚗', title:'Deslocamento (volta)', start: cursor, minutes: travel});
+      cursor += travel;
+    }
+  }
+
+  // therapy, Tuesdays only
+  if(isTuesday){
+    const tStart = toMin(cfg.therapyStart);
+    const tEnd = toMin(cfg.therapyEnd);
+    blocks.push({key:'therapy', icon:'💬', title:'Terapia', start: tStart, minutes: tEnd - tStart});
+  }
+
+  if(medEvening > 0){
+    const start = Math.max(eveningWindow.cursor, eveningWindow.end - medEvening);
+    blocks.push({key:'med_evening', icon:'🌙', title:'Meditação noturna', start, minutes: medEvening});
+    eveningWindow.cursor = start + medEvening;
+  }
+
+  // Vitaminas / medicamentos, calculados a partir dos horários das refeições
+  const breakfast = toMin(cfg.mealBreakfast);
+  const lunch = toMin(cfg.mealLunch);
+  const dinner = toMin(cfg.mealDinner);
+  const dur = cfg.mealDuration;
+
+  blocks.push({key:'syntroid', icon:'💊', title:'Syntroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
+  blocks.push({key:'natifa_omega', icon:'🐟', title:'Natifa Pro + Ômega 3', start: breakfast, minutes: 0, instant:true});
+  blocks.push({key:'subtramina', icon:'💊', title:'Subtramina', start: lunch - cfg.subBefore, minutes: 0, instant:true});
+  blocks.push({key:'calde_max', icon:'💊', title:'Calde Max', start: lunch + dur, minutes: 0, instant:true});
+  blocks.push({key:'fisiogen_lunch', icon:'💊', title:'Fisiogen', start: lunch + dur + 30, minutes: 0, instant:true});
+  blocks.push({key:'fisiogen_dinner', icon:'💊', title:'Fisiogen', start: dinner + dur + 30, minutes: 0, instant:true});
+  if(dow === 5){
+    blocks.push({key:'vitamina_d', icon:'☀️', title:'Vitamina D', start: lunch, minutes: 0, instant:true});
+  }
+
+  blocks.sort((a,b)=>a.start-b.start);
+
+  const gymConflict = gymEnd > workStart;
+
+  return { blocks, workStart, workEnd, wake, sleep, gymEnd, gymConflict };
+}
+
+function scheduleForDate(cfg, dateStr){
+  const dow = new Date(dateStr+'T12:00:00').getDay();
+  return buildSchedule(cfg, dow);
+}
+
+// ---------- Rendering: Hoje ----------
+function renderSchedule(){
+  const cfg = loadConfig();
+  const key = todayKey();
+  const built = scheduleForDate(cfg, key);
+  const { workStart, workEnd, gymEnd, gymConflict } = built;
+  const blocks = built.blocks.filter(b => !b.instant);
+  const history = loadHistory();
+  if(!history[key]) history[key] = {};
+  const todayData = history[key];
+
+  const list = document.getElementById('schedule-list');
+  list.innerHTML = '';
+
+  if(gymConflict){
+    const warn = document.createElement('div');
+    warn.style.cssText = 'background:rgba(255,97,97,0.14);color:var(--danger);border-radius:10px;padding:10px 12px;font-size:.82rem;margin-bottom:10px;';
+    warn.textContent = `⚠️ Você chega da academia às ${toHHMM(gymEnd)}, depois do início do trabalho (${toHHMM(workStart)}). Ajuste o horário de saída ou o início do trabalho em "Configurar".`;
+    list.appendChild(warn);
+  }
+
+  if(blocks.length === 0){
+    list.innerHTML += '<div class="empty">Configure sua rotina na aba "Configurar".</div>';
+    return;
+  }
+
+  let workInserted = false;
+  blocks.forEach(b=>{
+    if(!workInserted && b.start >= workStart){
+      const div = document.createElement('div');
+      div.className = 'work-block';
+      div.textContent = `💼 Trabalho · ${toHHMM(workStart)} – ${toHHMM(workEnd)}`;
+      list.appendChild(div);
+      workInserted = true;
+    }
+    const row = document.createElement('div');
+    row.className = 'row';
+    const done = !!todayData[b.key];
+    const tag = b.instant ? '' : `<span class="tag">${b.minutes} min</span>`;
+    const timeLabel = b.instant ? toHHMM(b.start) : `${toHHMM(b.start)} – ${toHHMM(b.start + b.minutes)}`;
+    const timerBtn = b.instant ? '' : `<button class="timer-btn" data-key="${b.key}" data-title="${b.title}" data-minutes="${b.minutes}">▶ Timer</button>`;
+    row.innerHTML = `
+      <div class="icon">${b.icon}</div>
+      <div class="info">
+        <div class="title">${b.title} ${tag}</div>
+        <div class="time">${timeLabel}</div>
+      </div>
+      ${timerBtn}
+      <div class="check ${done?'done':''}" data-key="${b.key}">${done?'✓':''}</div>
+    `;
+    list.appendChild(row);
+  });
+  if(!workInserted){
+    const div = document.createElement('div');
+    div.className = 'work-block';
+    div.textContent = `💼 Trabalho · ${toHHMM(workStart)} – ${toHHMM(workEnd)}`;
+    list.appendChild(div);
+  }
+
+  list.querySelectorAll('.check').forEach(chk=>{
+    chk.addEventListener('click', ()=>{
+      const k = chk.dataset.key;
+      const h = loadHistory();
+      const dk = todayKey();
+      if(!h[dk]) h[dk] = {};
+      h[dk][k] = !h[dk][k];
+      saveHistory(h);
+      renderSchedule();
+      renderProgress();
+    });
+  });
+
+  list.querySelectorAll('.timer-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openTimer(btn.dataset.key, btn.dataset.title, Number(btn.dataset.minutes)));
+  });
+}
+
+// ---------- Timer ----------
+let timerInterval = null;
+let timerSeconds = 0;
+let timerKey = null;
+
+function openTimer(key, title, minutes){
+  timerKey = key;
+  timerSeconds = minutes*60;
+  document.getElementById('timer-label').textContent = title;
+  updateTimerDisplay();
+  document.getElementById('timer-toggle').textContent = 'Iniciar';
+  document.getElementById('timer-modal').classList.add('show');
+}
+function updateTimerDisplay(){
+  const m = Math.floor(timerSeconds/60);
+  const s = timerSeconds%60;
+  document.getElementById('timer-display').textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+document.getElementById('timer-toggle').addEventListener('click', ()=>{
+  const btn = document.getElementById('timer-toggle');
+  if(timerInterval){
+    clearInterval(timerInterval);
+    timerInterval = null;
+    btn.textContent = 'Continuar';
+  } else {
+    btn.textContent = 'Pausar';
+    timerInterval = setInterval(()=>{
+      timerSeconds--;
+      updateTimerDisplay();
+      if(timerSeconds <= 0){
+        clearInterval(timerInterval);
+        timerInterval = null;
+        const h = loadHistory();
+        const dk = todayKey();
+        if(!h[dk]) h[dk] = {};
+        h[dk][timerKey] = true;
+        saveHistory(h);
+        document.getElementById('timer-modal').classList.remove('show');
+        renderSchedule();
+        renderProgress();
+      }
+    }, 1000);
+  }
+});
+document.getElementById('timer-close').addEventListener('click', ()=>{
+  clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('timer-modal').classList.remove('show');
+});
+
+// ---------- Remédios / Vitaminas ----------
+function formatDelta(mins){
+  if(mins < 60) return `em ${mins} min`;
+  const h = Math.floor(mins/60), m = mins%60;
+  return `em ${h}h${String(m).padStart(2,'0')}`;
+}
+
+function renderRemedios(){
+  const cfg = loadConfig();
+  const key = todayKey();
+  const built = scheduleForDate(cfg, key);
+  const items = built.blocks.filter(b=>b.instant);
+  const history = loadHistory();
+  if(!history[key]) history[key] = {};
+  const todayData = history[key];
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+
+  const list = document.getElementById('remedios-list');
+  list.innerHTML = '';
+
+  if(items.length === 0){
+    list.innerHTML = '<div class="empty">Nenhum remédio configurado.</div>';
+    return;
+  }
+
+  items.forEach(b=>{
+    const start = ((b.start % 1440) + 1440) % 1440;
+    const done = !!todayData[b.key];
+    const row = document.createElement('div');
+    row.className = 'row';
+    let statusHtml = '';
+    if(done){
+      statusHtml = `<div class="time" style="color:var(--primary);">✓ Tomado</div>`;
+    } else if(nowMin >= start){
+      row.style.background = 'rgba(255,97,97,0.14)';
+      row.style.borderRadius = '10px';
+      statusHtml = `<div class="time" style="color:var(--danger);font-weight:600;">Agora / atrasado</div>`;
+    } else {
+      statusHtml = `<div class="time">${formatDelta(start - nowMin)}</div>`;
+    }
+    row.innerHTML = `
+      <div class="icon">${b.icon}</div>
+      <div class="info">
+        <div class="title">${b.title}</div>
+        <div class="time">${toHHMM(b.start)}</div>
+        ${statusHtml}
+      </div>
+      <div class="check ${done?'done':''}" data-key="${b.key}">${done?'✓':''}</div>
+    `;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('.check').forEach(chk=>{
+    chk.addEventListener('click', ()=>{
+      const k = chk.dataset.key;
+      const h = loadHistory();
+      const dk = todayKey();
+      if(!h[dk]) h[dk] = {};
+      h[dk][k] = !h[dk][k];
+      saveHistory(h);
+      renderRemedios();
+      renderProgress();
+    });
+  });
+}
+
+function updateNotifStatus(){
+  const el = document.getElementById('notif-status');
+  if(!('Notification' in window)){
+    el.textContent = 'Não suportado neste navegador';
+    return;
+  }
+  const p = Notification.permission;
+  el.textContent = p === 'granted' ? 'Ativadas ✓'
+    : p === 'denied' ? 'Bloqueadas (habilite nas configurações do navegador)'
+    : 'Desativadas';
+}
+
+document.getElementById('btn-enable-notif').addEventListener('click', ()=>{
+  if(!('Notification' in window)){
+    alert('Seu navegador não suporta notificações.');
+    return;
+  }
+  Notification.requestPermission().then(()=> updateNotifStatus());
+});
+
+function checkAlerts(){
+  const cfg = loadConfig();
+  const key = todayKey();
+  const built = scheduleForDate(cfg, key);
+  const items = built.blocks.filter(b=>b.instant);
+  const history = loadHistory();
+  const todayData = history[key] || {};
+  const notified = JSON.parse(localStorage.getItem('rotina_notified') || '{}');
+  if(!notified[key]) notified[key] = {};
+
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  let changed = false;
+
+  items.forEach(b=>{
+    const start = ((b.start % 1440) + 1440) % 1440;
+    if(!todayData[b.key] && nowMin >= start && !notified[key][b.key]){
+      notified[key][b.key] = true;
+      changed = true;
+      if('Notification' in window && Notification.permission === 'granted'){
+        new Notification('💊 Hora do remédio', { body: `${b.title} · ${toHHMM(b.start)}` });
+      }
+    }
+  });
+
+  if(changed) localStorage.setItem('rotina_notified', JSON.stringify(notified));
+
+  if(document.getElementById('tab-remedios').style.display !== 'none'){
+    renderRemedios();
+  }
+}
+
+// ---------- Progress ----------
+function renderProgress(){
+  const cfg = loadConfig();
+  const history = loadHistory();
+
+  function completionForDay(dateStr){
+    const dayBlocks = scheduleForDate(cfg, dateStr).blocks;
+    const total = dayBlocks.length;
+    const d = history[dateStr];
+    if(!d || total === 0) return 0;
+    let done = 0;
+    dayBlocks.forEach(b=>{ if(d[b.key]) done++; });
+    return done/total;
+  }
+
+  // streaks: a day counts as "complete" if all tasks done
+  const dates = [];
+  for(let i=0;i<60;i++){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  let current = 0;
+  for(const d of dates){
+    if(completionForDay(d) >= 0.999){ current++; } else break;
+  }
+  let best = 0, run = 0;
+  for(let i=dates.length-1;i>=0;i--){
+    if(completionForDay(dates[i]) >= 0.999){ run++; best = Math.max(best,run); }
+    else run = 0;
+  }
+  const last7 = dates.slice(0,7);
+  const avg7 = last7.reduce((a,d)=>a+completionForDay(d),0)/7;
+
+  document.getElementById('streak-current').textContent = current;
+  document.getElementById('streak-best').textContent = best;
+  document.getElementById('streak-week').textContent = Math.round(avg7*100)+'%';
+
+  const bars = document.getElementById('bars');
+  bars.innerHTML = '';
+  const last7Rev = [...last7].reverse();
+  const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  last7Rev.forEach(d=>{
+    const pct = completionForDay(d);
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    const dow = new Date(d+'T12:00:00').getDay();
+    col.innerHTML = `<div class="bar" style="height:${Math.max(4,pct*100)}%"></div><span>${dayNames[dow]}</span>`;
+    bars.appendChild(col);
+  });
+}
+
+// ---------- Config form ----------
+function fillConfigForm(){
+  const cfg = loadConfig();
+  document.getElementById('cfg-wake').value = cfg.wake;
+  document.getElementById('cfg-sleep').value = cfg.sleep;
+  document.getElementById('cfg-work-start').value = cfg.workStart;
+  document.getElementById('cfg-work-end').value = cfg.workEnd;
+  document.getElementById('cfg-study-min').value = cfg.studyMin;
+  document.getElementById('cfg-study-pref').value = cfg.studyPref;
+  document.getElementById('cfg-gym-leave').value = cfg.gymLeave;
+  document.getElementById('cfg-gym-leave-tue').value = cfg.gymLeaveTue;
+  document.getElementById('cfg-therapy-start').value = cfg.therapyStart;
+  document.getElementById('cfg-therapy-end').value = cfg.therapyEnd;
+  document.getElementById('cfg-gym-travel').value = cfg.gymTravel;
+  document.getElementById('cfg-gym-strength').value = cfg.gymStrength;
+  document.getElementById('cfg-gym-cardio').value = cfg.gymCardio;
+  document.getElementById('cfg-meditation-min').value = cfg.meditationMin;
+  document.getElementById('cfg-meditation-split').value = cfg.meditationSplit;
+  document.getElementById('cfg-meal-breakfast').value = cfg.mealBreakfast;
+  document.getElementById('cfg-meal-lunch').value = cfg.mealLunch;
+  document.getElementById('cfg-meal-dinner').value = cfg.mealDinner;
+  document.getElementById('cfg-meal-duration').value = cfg.mealDuration;
+  document.getElementById('cfg-sub-before').value = cfg.subBefore;
+  document.getElementById('cfg-syntroid-before').value = cfg.syntroidBefore;
+}
+document.getElementById('btn-save-config').addEventListener('click', ()=>{
+  const cfg = {
+    wake: document.getElementById('cfg-wake').value,
+    sleep: document.getElementById('cfg-sleep').value,
+    workStart: document.getElementById('cfg-work-start').value,
+    workEnd: document.getElementById('cfg-work-end').value,
+    studyMin: Number(document.getElementById('cfg-study-min').value),
+    studyPref: document.getElementById('cfg-study-pref').value,
+    gymLeave: document.getElementById('cfg-gym-leave').value,
+    gymLeaveTue: document.getElementById('cfg-gym-leave-tue').value,
+    therapyStart: document.getElementById('cfg-therapy-start').value,
+    therapyEnd: document.getElementById('cfg-therapy-end').value,
+    gymTravel: Number(document.getElementById('cfg-gym-travel').value),
+    gymStrength: Number(document.getElementById('cfg-gym-strength').value),
+    gymCardio: Number(document.getElementById('cfg-gym-cardio').value),
+    meditationMin: Number(document.getElementById('cfg-meditation-min').value),
+    meditationSplit: document.getElementById('cfg-meditation-split').value,
+    mealBreakfast: document.getElementById('cfg-meal-breakfast').value,
+    mealLunch: document.getElementById('cfg-meal-lunch').value,
+    mealDinner: document.getElementById('cfg-meal-dinner').value,
+    mealDuration: Number(document.getElementById('cfg-meal-duration').value),
+    subBefore: Number(document.getElementById('cfg-sub-before').value),
+    syntroidBefore: Number(document.getElementById('cfg-syntroid-before').value),
+  };
+  saveConfig(cfg);
+  renderSchedule();
+  renderRemedios();
+  renderProgress();
+  document.querySelector('nav button[data-tab="hoje"]').click();
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    ['hoje','remedios','config','progresso'].forEach(t=>{
+      document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
+    });
+    if(btn.dataset.tab === 'remedios') renderRemedios();
+  });
+});
+
+// ---------- Init ----------
+function setTodayLabel(){
+  const days = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const d = new Date();
+  document.getElementById('today-label').textContent =
+    `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`;
+}
+
+// first-time default: work 09:00-18:00 already set as default above.
+fillConfigForm();
+setTodayLabel();
+renderSchedule();
+renderRemedios();
+renderProgress();
+updateNotifStatus();
+checkAlerts();
+setInterval(checkAlerts, 30000);
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // ignora: service worker exige http/https, não funciona abrindo o arquivo direto (file://)
+    });
+  });
+}
+</script>
+
+</body>
+</html>
