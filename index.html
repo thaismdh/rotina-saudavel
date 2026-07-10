@@ -248,6 +248,16 @@
         <button class="timer-btn" id="btn-enable-notif">Ativar</button>
       </div>
       <div class="time" style="margin-top:6px;">Funciona enquanto esta aba estiver aberta no navegador.</div>
+
+      <div class="row">
+        <div class="icon">📡</div>
+        <div class="info">
+          <div class="title">Notificação mesmo com o app fechado</div>
+          <div class="time" id="push-status">Não configurado</div>
+        </div>
+        <button class="timer-btn" id="btn-enable-push">Ativar</button>
+      </div>
+      <div class="time" style="margin-top:6px;">Precisa configurar a URL do servidor de push em "Configurar" primeiro.</div>
     </div>
     <div class="card">
       <h2>Vitaminas e remédios de hoje</h2>
@@ -358,6 +368,13 @@
       <label>Syntroid: minutos antes do café</label>
       <input type="number" id="cfg-syntroid-before" value="30" min="0" step="5">
     </div>
+
+    <div class="card">
+      <h2>Notificações push (opcional)</h2>
+      <div class="time" style="margin-bottom:8px;">Cole aqui a URL do seu servidor de push (Cloudflare Worker) para receber notificações mesmo com o app fechado.</div>
+      <label>URL do servidor de notificações</label>
+      <input type="text" id="cfg-push-url" placeholder="https://rotina-push.seu-usuario.workers.dev">
+    </div>
   </section>
 
   <!-- TAB: PROGRESSO -->
@@ -391,6 +408,8 @@
 </div>
 
 <script>
+const VAPID_PUBLIC_KEY = "BO5d6lpXwbWPlP3NhAZAzY-MT4vQMz02DTdnXpIyGxBNxMrDv4aF-krw7yR_QE4zipcxLB_Wa58tdyxfl4xlzeo";
+
 const DEFAULT_CONFIG = {
   wake: "06:30", sleep: "22:30",
   workStart: "09:00", workEnd: "18:00",
@@ -399,7 +418,8 @@ const DEFAULT_CONFIG = {
   meditationMin: 15, meditationSplit: "split",
   mealBreakfast: "09:00", mealLunch: "12:30", mealDinner: "19:30", mealDuration: 30,
   subBefore: 15, syntroidBefore: 30,
-  therapyStart: "08:20", therapyEnd: "09:00"
+  therapyStart: "08:20", therapyEnd: "09:00",
+  pushServerUrl: ""
 };
 
 function loadConfig(){
@@ -758,6 +778,7 @@ function renderRemedios(){
       if(!h[dk]) h[dk] = {};
       h[dk][k] = !h[dk][k];
       saveHistory(h);
+      syncDoneToServer(dk, k, h[dk][k]);
       renderRemedios();
       renderProgress();
     });
@@ -782,6 +803,81 @@ document.getElementById('btn-enable-notif').addEventListener('click', ()=>{
     return;
   }
   Notification.requestPermission().then(()=> updateNotifStatus());
+});
+
+// ---------- Push (works with the app closed, via a Cloudflare Worker) ----------
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function syncConfigToServer(cfg){
+  if(!cfg.pushServerUrl) return;
+  try{
+    await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config: cfg }),
+    });
+  } catch(e){ /* offline or server not deployed yet; ignore */ }
+}
+
+async function syncDoneToServer(date, key, done){
+  const cfg = loadConfig();
+  if(!cfg.pushServerUrl) return;
+  try{
+    await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, key, done }),
+    });
+  } catch(e){ /* offline or server not deployed yet; ignore */ }
+}
+
+function updatePushStatus(text){
+  const el = document.getElementById('push-status');
+  if(el) el.textContent = text;
+}
+
+document.getElementById('btn-enable-push').addEventListener('click', async ()=>{
+  const cfg = loadConfig();
+  if(!cfg.pushServerUrl){
+    alert('Configure a URL do servidor de notificações na aba "Configurar" primeiro.');
+    return;
+  }
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    alert('Seu navegador não suporta notificações push.');
+    return;
+  }
+  updatePushStatus('Ativando...');
+  try{
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){
+      updatePushStatus('Permissão negada');
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let subscription = await reg.pushManager.getSubscription();
+    if(!subscription){
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription }),
+    });
+    await syncConfigToServer(cfg);
+    updatePushStatus('Ativado ✓');
+  } catch(err){
+    updatePushStatus('Erro ao ativar (confira a URL do servidor)');
+  }
 });
 
 function checkAlerts(){
@@ -892,6 +988,7 @@ function fillConfigForm(){
   document.getElementById('cfg-meal-duration').value = cfg.mealDuration;
   document.getElementById('cfg-sub-before').value = cfg.subBefore;
   document.getElementById('cfg-syntroid-before').value = cfg.syntroidBefore;
+  document.getElementById('cfg-push-url').value = cfg.pushServerUrl || '';
 }
 document.getElementById('btn-save-config').addEventListener('click', ()=>{
   const cfg = {
@@ -916,11 +1013,13 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
     mealDuration: Number(document.getElementById('cfg-meal-duration').value),
     subBefore: Number(document.getElementById('cfg-sub-before').value),
     syntroidBefore: Number(document.getElementById('cfg-syntroid-before').value),
+    pushServerUrl: document.getElementById('cfg-push-url').value.trim(),
   };
   saveConfig(cfg);
   renderSchedule();
   renderRemedios();
   renderProgress();
+  syncConfigToServer(cfg);
   document.querySelector('nav button[data-tab="hoje"]').click();
 });
 
@@ -957,7 +1056,13 @@ setInterval(checkAlerts, 30000);
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {
+    navigator.serviceWorker.register('sw.js').then(async (reg) => {
+      const cfg = loadConfig();
+      if(cfg.pushServerUrl){
+        const sub = await reg.pushManager.getSubscription().catch(()=>null);
+        updatePushStatus(sub ? 'Ativado ✓' : 'Não configurado');
+      }
+    }).catch(() => {
       // ignora: service worker exige http/https, não funciona abrindo o arquivo direto (file://)
     });
   });
