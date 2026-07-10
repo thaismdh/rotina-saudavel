@@ -408,7 +408,7 @@
 </div>
 
 <script>
-const VAPID_PUBLIC_KEY = "BO5d6lpXwbWPlP3NhAZAzY-MT4vQMz02DTdnXpIyGxBNxMrDv4aF-krw7yR_QE4zipcxLB_Wa58tdyxfl4xlzeo";
+const VAPID_PUBLIC_KEY = "BH2Qz5Fz9_z1BFqSsy60BkClOKbx3PPB9ocJ61ObA9DkkflU6E9CA--B2NC2ahlR-bGaJaEb4ylL5SsZAqkamjc";
 
 const DEFAULT_CONFIG = {
   wake: "06:30", sleep: "22:30",
@@ -419,7 +419,7 @@ const DEFAULT_CONFIG = {
   mealBreakfast: "09:00", mealLunch: "12:30", mealDinner: "19:30", mealDuration: 30,
   subBefore: 15, syntroidBefore: 30,
   therapyStart: "08:20", therapyEnd: "09:00",
-  pushServerUrl: ""
+  pushServerUrl: "https://rotina-push.thaismdh.workers.dev"
 };
 
 function loadConfig(){
@@ -980,94 +980,3 @@ function fillConfigForm(){
   document.getElementById('cfg-gym-travel').value = cfg.gymTravel;
   document.getElementById('cfg-gym-strength').value = cfg.gymStrength;
   document.getElementById('cfg-gym-cardio').value = cfg.gymCardio;
-  document.getElementById('cfg-meditation-min').value = cfg.meditationMin;
-  document.getElementById('cfg-meditation-split').value = cfg.meditationSplit;
-  document.getElementById('cfg-meal-breakfast').value = cfg.mealBreakfast;
-  document.getElementById('cfg-meal-lunch').value = cfg.mealLunch;
-  document.getElementById('cfg-meal-dinner').value = cfg.mealDinner;
-  document.getElementById('cfg-meal-duration').value = cfg.mealDuration;
-  document.getElementById('cfg-sub-before').value = cfg.subBefore;
-  document.getElementById('cfg-syntroid-before').value = cfg.syntroidBefore;
-  document.getElementById('cfg-push-url').value = cfg.pushServerUrl || '';
-}
-document.getElementById('btn-save-config').addEventListener('click', ()=>{
-  const cfg = {
-    wake: document.getElementById('cfg-wake').value,
-    sleep: document.getElementById('cfg-sleep').value,
-    workStart: document.getElementById('cfg-work-start').value,
-    workEnd: document.getElementById('cfg-work-end').value,
-    studyMin: Number(document.getElementById('cfg-study-min').value),
-    studyPref: document.getElementById('cfg-study-pref').value,
-    gymLeave: document.getElementById('cfg-gym-leave').value,
-    gymLeaveTue: document.getElementById('cfg-gym-leave-tue').value,
-    therapyStart: document.getElementById('cfg-therapy-start').value,
-    therapyEnd: document.getElementById('cfg-therapy-end').value,
-    gymTravel: Number(document.getElementById('cfg-gym-travel').value),
-    gymStrength: Number(document.getElementById('cfg-gym-strength').value),
-    gymCardio: Number(document.getElementById('cfg-gym-cardio').value),
-    meditationMin: Number(document.getElementById('cfg-meditation-min').value),
-    meditationSplit: document.getElementById('cfg-meditation-split').value,
-    mealBreakfast: document.getElementById('cfg-meal-breakfast').value,
-    mealLunch: document.getElementById('cfg-meal-lunch').value,
-    mealDinner: document.getElementById('cfg-meal-dinner').value,
-    mealDuration: Number(document.getElementById('cfg-meal-duration').value),
-    subBefore: Number(document.getElementById('cfg-sub-before').value),
-    syntroidBefore: Number(document.getElementById('cfg-syntroid-before').value),
-    pushServerUrl: document.getElementById('cfg-push-url').value.trim(),
-  };
-  saveConfig(cfg);
-  renderSchedule();
-  renderRemedios();
-  renderProgress();
-  syncConfigToServer(cfg);
-  document.querySelector('nav button[data-tab="hoje"]').click();
-});
-
-// ---------- Tabs ----------
-document.querySelectorAll('nav button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    ['hoje','remedios','config','progresso'].forEach(t=>{
-      document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
-    });
-    if(btn.dataset.tab === 'remedios') renderRemedios();
-  });
-});
-
-// ---------- Init ----------
-function setTodayLabel(){
-  const days = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
-  const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const d = new Date();
-  document.getElementById('today-label').textContent =
-    `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`;
-}
-
-// first-time default: work 09:00-18:00 already set as default above.
-fillConfigForm();
-setTodayLabel();
-renderSchedule();
-renderRemedios();
-renderProgress();
-updateNotifStatus();
-checkAlerts();
-setInterval(checkAlerts, 30000);
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').then(async (reg) => {
-      const cfg = loadConfig();
-      if(cfg.pushServerUrl){
-        const sub = await reg.pushManager.getSubscription().catch(()=>null);
-        updatePushStatus(sub ? 'Ativado ✓' : 'Não configurado');
-      }
-    }).catch(() => {
-      // ignora: service worker exige http/https, não funciona abrindo o arquivo direto (file://)
-    });
-  });
-}
-</script>
-
-</body>
-</html>
