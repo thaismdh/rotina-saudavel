@@ -40,7 +40,8 @@
   }
   header h1{margin:0 0 4px;font-size:1.6rem;letter-spacing:.02em;}
   header p{margin:0;opacity:.9;font-size:.9rem;}
-  header .tagline{margin-top:8px;font-size:.8rem;opacity:.85;letter-spacing:.05em;}
+  header .tagline{margin-top:8px;font-size:.8rem;opacity:.9;letter-spacing:.02em;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.4;}
+  header .weather-chip{margin-top:10px;display:inline-block;background:rgba(255,255,255,.18);padding:4px 12px;border-radius:20px;font-size:.85rem;font-weight:600;}
   nav{
     display:flex;
     max-width:640px;
@@ -215,7 +216,8 @@
 <header>
   <h1>🐾 Rotina Saudável</h1>
   <p id="today-label">Estudos · Exercício · Meditação</p>
-  <div class="tagline">📊 dados · ✈️ viagens · 🖤 tattoo · 💎 piercing · 💪 ativa</div>
+  <div class="tagline" id="daily-phrase">✨</div>
+  <div class="weather-chip" id="weather-chip" style="display:none;"></div>
 </header>
 
 <nav>
@@ -229,6 +231,10 @@
 
   <!-- TAB: HOJE -->
   <section id="tab-hoje">
+    <div class="card" id="calendar-card" style="display:none;">
+      <h2>📅 Agenda de hoje</h2>
+      <div id="calendar-list"></div>
+    </div>
     <div class="card">
       <h2>Sua rotina de hoje</h2>
       <div id="schedule-list"></div>
@@ -375,6 +381,13 @@
       <label>URL do servidor de notificações</label>
       <input type="text" id="cfg-push-url" placeholder="https://rotina-push.seu-usuario.workers.dev">
     </div>
+
+    <div class="card">
+      <h2>Calendário do Google (opcional)</h2>
+      <div class="time" style="margin-bottom:8px;">No Google Calendar: Configurações ⚙️ → clique no seu calendário → "Integrar calendário" → copie o "Endereço secreto em formato iCal" e cole abaixo. A agenda de hoje aparece na aba "Hoje".</div>
+      <label>Link secreto do iCal</label>
+      <input type="text" id="cfg-calendar-ical" placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics">
+    </div>
   </section>
 
   <!-- TAB: PROGRESSO -->
@@ -419,7 +432,8 @@ const DEFAULT_CONFIG = {
   mealBreakfast: "09:00", mealLunch: "12:30", mealDinner: "19:30", mealDuration: 30,
   subBefore: 15, syntroidBefore: 30,
   therapyStart: "08:20", therapyEnd: "09:00",
-  pushServerUrl: "https://rotina-push.thaismdh.workers.dev"
+  pushServerUrl: "https://rotina-push.thaismdh.workers.dev",
+  calendarIcalUrl: ""
 };
 
 function loadConfig(){
@@ -912,6 +926,108 @@ function checkAlerts(){
   }
 }
 
+// ---------- Frase motivacional do dia ----------
+const MOTIVATIONAL_PHRASES = [
+  "Os dados de hoje são a tendência de amanhã. Bora registrar mais um dia bom.",
+  "Cada check é um data point a favor de você mesma.",
+  "Consistência é o gráfico que você quer ver subindo.",
+  "Um passo de cada vez — sua rotina é o seu melhor algoritmo.",
+  "Você já superou 100% dos seus dias difíceis até agora.",
+  "Progresso não é sempre linear, mas a tendência é sua.",
+  "Cuide de você com a mesma disciplina que cuida dos seus projetos.",
+  "Hoje é um ótimo dia pra somar mais um ponto na sua streak.",
+  "Sua energia de hoje é o investimento no seu eu de amanhã.",
+  "Menos perfeição, mais constância — é assim que os resultados aparecem.",
+  "Arrume as malas pro próximo objetivo: um hábito de cada vez.",
+  "Tatuagem boa e rotina boa têm algo em comum: exigem paciência.",
+  "Respire, treine, estude, repita. O resto se ajusta.",
+  "Ninguém constrói um bom dataset da noite pro dia — sua rotina também não.",
+  "Você é o outlier bom da sua própria história.",
+  "Confia no processo: hoje é só mais uma linha da sua planilha de vitórias.",
+  "Corpo ativo, mente tranquila, vida em dia.",
+  "Cada meditação de hoje é um refactor na sua cabeça.",
+  "Sua próxima viagem começa com o cuidado que você tem hoje.",
+  "Pequenos commits diários constroem grandes versões de você.",
+];
+
+function renderDailyPhrase(){
+  const el = document.getElementById('daily-phrase');
+  if(!el) return;
+  const start = new Date(new Date().getFullYear(), 0, 0);
+  const diff = Date.now() - start.getTime();
+  const dayOfYear = Math.floor(diff / 86400000);
+  const phrase = MOTIVATIONAL_PHRASES[dayOfYear % MOTIVATIONAL_PHRASES.length];
+  el.textContent = phrase;
+}
+
+// ---------- Clima (GPS + Open-Meteo, sem chave de API) ----------
+const WEATHER_CODE_ICON = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+  45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌦️',
+  61: '🌧️', 63: '🌧️', 65: '🌧️',
+  71: '🌨️', 73: '🌨️', 75: '🌨️',
+  80: '🌦️', 81: '🌧️', 82: '⛈️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️',
+};
+
+async function initWeather(){
+  const chip = document.getElementById('weather-chip');
+  if(!chip || !('geolocation' in navigator)) return;
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
+    try{
+      const { latitude, longitude } = pos.coords;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const temp = Math.round(data.current.temperature_2m);
+      const icon = WEATHER_CODE_ICON[data.current.weather_code] || '🌡️';
+      chip.textContent = `${icon} ${temp}°C`;
+      chip.style.display = '';
+    } catch(e){
+      // silently ignore — weather is a nice-to-have, not critical
+    }
+  }, ()=>{
+    // permission denied or unavailable — leave the chip hidden
+  }, { timeout: 8000 });
+}
+
+// ---------- Calendário (link secreto iCal via Worker) ----------
+async function renderCalendar(){
+  const cfg = loadConfig();
+  const card = document.getElementById('calendar-card');
+  const list = document.getElementById('calendar-list');
+  if(!cfg.pushServerUrl || !cfg.calendarIcalUrl){
+    card.style.display = 'none';
+    return;
+  }
+  try{
+    const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/calendar/today');
+    const data = await res.json();
+    if(!data.events || data.events.length === 0){
+      card.style.display = 'none';
+      return;
+    }
+    list.innerHTML = '';
+    data.events.forEach(ev=>{
+      const row = document.createElement('div');
+      row.className = 'row';
+      const timeLabel = ev.allDay ? 'Dia todo' : (ev.end ? `${ev.start} – ${ev.end}` : ev.start);
+      row.innerHTML = `
+        <div class="icon">${ev.allDay ? '🗓️' : '📌'}</div>
+        <div class="info">
+          <div class="title">${ev.title}</div>
+          <div class="time">${timeLabel}</div>
+        </div>
+      `;
+      list.appendChild(row);
+    });
+    card.style.display = '';
+  } catch(e){
+    card.style.display = 'none';
+  }
+}
+
 // ---------- Progress ----------
 function renderProgress(){
   const cfg = loadConfig();
@@ -989,6 +1105,7 @@ function fillConfigForm(){
   document.getElementById('cfg-sub-before').value = cfg.subBefore;
   document.getElementById('cfg-syntroid-before').value = cfg.syntroidBefore;
   document.getElementById('cfg-push-url').value = cfg.pushServerUrl || '';
+  document.getElementById('cfg-calendar-ical').value = cfg.calendarIcalUrl || '';
 }
 document.getElementById('btn-save-config').addEventListener('click', ()=>{
   const cfg = {
@@ -1014,12 +1131,14 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
     subBefore: Number(document.getElementById('cfg-sub-before').value),
     syntroidBefore: Number(document.getElementById('cfg-syntroid-before').value),
     pushServerUrl: document.getElementById('cfg-push-url').value.trim(),
+    calendarIcalUrl: document.getElementById('cfg-calendar-ical').value.trim(),
   };
   saveConfig(cfg);
   syncConfigToServer(cfg);
   renderSchedule();
   renderRemedios();
   renderProgress();
+  renderCalendar();
   document.querySelector('nav button[data-tab="hoje"]').click();
 });
 
@@ -1047,9 +1166,12 @@ function setTodayLabel(){
 // first-time default: work 09:00-18:00 already set as default above.
 fillConfigForm();
 setTodayLabel();
+renderDailyPhrase();
+initWeather();
 renderSchedule();
 renderRemedios();
 renderProgress();
+renderCalendar();
 updateNotifStatus();
 checkAlerts();
 setInterval(checkAlerts, 30000);
