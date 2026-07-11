@@ -1819,11 +1819,17 @@ let __syncDebounceTimer = null;
 let __hasPulledOnce = false;
 let __pendingPushAfterInitialPull = false;
 function markDirtyAndSync(){
-  localStorage.setItem('rotina_state_updated_at', String(Date.now()));
   if(!__hasPulledOnce){
+    // Não mexe no timestamp ainda: se mexêssemos agora, o pullStateOnLoad (que
+    // ainda não terminou) ia comparar esse "agora" com o timestamp (mais
+    // antigo) do servidor, concluir errado que o local é mais novo, e mandar
+    // um estado local incompleto pro servidor — exatamente o bug que isso
+    // existe pra evitar (ex.: loadProgressStart semeando a data de início logo
+    // no primeiro render, antes do pull real terminar).
     __pendingPushAfterInitialPull = true;
     return;
   }
+  localStorage.setItem('rotina_state_updated_at', String(Date.now()));
   clearTimeout(__syncDebounceTimer);
   __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
 }
@@ -1944,6 +1950,7 @@ window.addEventListener('pagehide', flushSyncNow);
 function flushPendingPushIfAny(){
   if(__pendingPushAfterInitialPull){
     __pendingPushAfterInitialPull = false;
+    localStorage.setItem('rotina_state_updated_at', String(Date.now()));
     clearTimeout(__syncDebounceTimer);
     __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
   }
