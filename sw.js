@@ -1,4 +1,4 @@
-const CACHE_NAME = 'floresce-v38';
+const CACHE_NAME = 'floresce-v39';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json',

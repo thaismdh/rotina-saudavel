@@ -493,8 +493,10 @@
 
           <div class="card">
             <h2>Suas metas diárias</h2>
-            <label>Estudo (minutos, meta: pelo menos 3x/semana)</label>
+            <label>Estudo (minutos por sessão)</label>
             <input type="number" id="cfg-study-min" value="60" min="0" step="5">
+            <label>Meta semanal de estudo (dias por semana)</label>
+            <input type="number" id="cfg-study-weekly-target" value="3" min="1" max="7" step="1">
             <label>Prefiro estudar</label>
             <select id="cfg-study-pref">
               <option value="morning">De manhã (antes do trabalho)</option>
@@ -799,6 +801,7 @@ const DEFAULT_CONFIG = {
   workStart: "09:00", workEnd: "18:00",
   studyMin: 60, studyPref: "evening",
   gymLeave: "07:00", gymLeaveTue: "06:30", gymStrength: 40, gymCardio: 20, gymWeeklyTarget: 4,
+  studyWeeklyTarget: 3,
   spinningStart: "09:30", spinningMin: 45,
   walkStart: "08:00", walkMin: 45,
   morningPracticeEnabled: true, morningPracticeMin: 10,
@@ -2706,6 +2709,7 @@ function renderMonthlyChart(cfg, history){
   });
 }
 
+const WEEKLY_GOAL_TARGET_CFG_KEYS = { gym: 'gymWeeklyTarget', study: 'studyWeeklyTarget' };
 function renderGoals(history, cfg){
   const el = document.getElementById('goals-list');
   if(!el) return;
@@ -2714,7 +2718,8 @@ function renderGoals(history, cfg){
   const weekDates = getWeekDates(new Date());
   el.innerHTML = '';
   Object.entries(WEEKLY_GOALS).forEach(([key, goal])=>{
-    const target = key === 'gym' ? (cfg.gymWeeklyTarget || goal.target) : goal.target;
+    const cfgKey = WEEKLY_GOAL_TARGET_CFG_KEYS[key];
+    const target = (cfgKey && cfg[cfgKey]) || goal.target;
     const count = weeklyGoalCount(history, goal.keys, weekDates);
     const pct = Math.min(100, Math.round((count/target)*100));
     const row = document.createElement('div');
@@ -2781,6 +2786,7 @@ function fillConfigForm(){
   document.getElementById('cfg-gym-leave').value = cfg.gymLeave;
   document.getElementById('cfg-gym-leave-tue').value = cfg.gymLeaveTue;
   document.getElementById('cfg-gym-weekly-target').value = cfg.gymWeeklyTarget;
+  document.getElementById('cfg-study-weekly-target').value = cfg.studyWeeklyTarget;
   document.getElementById('cfg-therapy-start').value = cfg.therapyStart;
   document.getElementById('cfg-therapy-end').value = cfg.therapyEnd;
   document.getElementById('cfg-gym-strength').value = cfg.gymStrength;
@@ -3065,6 +3071,7 @@ function saveConfigFromForm(){
     gymLeave: document.getElementById('cfg-gym-leave').value,
     gymLeaveTue: document.getElementById('cfg-gym-leave-tue').value,
     gymWeeklyTarget: Number(document.getElementById('cfg-gym-weekly-target').value) || 4,
+    studyWeeklyTarget: Number(document.getElementById('cfg-study-weekly-target').value) || 3,
     therapyStart: document.getElementById('cfg-therapy-start').value,
     therapyEnd: document.getElementById('cfg-therapy-end').value,
     gymStrength: Number(document.getElementById('cfg-gym-strength').value),
