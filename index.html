@@ -476,7 +476,9 @@
               <option value="evening" selected>À noite (depois do trabalho)</option>
             </select>
 
-            <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia (meta: 4x/semana)</div>
+            <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia</div>
+            <label>Meta semanal (dias por semana)</label>
+            <input type="number" id="cfg-gym-weekly-target" value="4" min="1" max="7" step="1">
             <label>Horário da academia</label>
             <input type="time" id="cfg-gym-leave" value="07:00">
             <div class="grid2">
@@ -743,7 +745,7 @@ const DEFAULT_CONFIG = {
   wake: "06:30", sleep: "22:30",
   workStart: "09:00", workEnd: "18:00",
   studyMin: 60, studyPref: "evening",
-  gymLeave: "07:00", gymLeaveTue: "06:30", gymStrength: 40, gymCardio: 20,
+  gymLeave: "07:00", gymLeaveTue: "06:30", gymStrength: 40, gymCardio: 20, gymWeeklyTarget: 4,
   spinningStart: "09:30", spinningMin: 45,
   walkStart: "08:00", walkMin: 45,
   morningPracticeEnabled: true, morningPracticeMin: 10,
@@ -2482,7 +2484,7 @@ function renderProgress(){
     bars.appendChild(col);
   });
 
-  renderGoals(history);
+  renderGoals(history, cfg);
   renderMonthlyChart(cfg, history);
   renderBadges(cfg, history);
 
@@ -2543,21 +2545,23 @@ function renderMonthlyChart(cfg, history){
   });
 }
 
-function renderGoals(history){
+function renderGoals(history, cfg){
   const el = document.getElementById('goals-list');
   if(!el) return;
   history = history || loadHistory();
+  cfg = cfg || loadConfig();
   const weekDates = getWeekDates(new Date());
   el.innerHTML = '';
-  Object.values(WEEKLY_GOALS).forEach(goal=>{
+  Object.entries(WEEKLY_GOALS).forEach(([key, goal])=>{
+    const target = key === 'gym' ? (cfg.gymWeeklyTarget || goal.target) : goal.target;
     const count = weeklyGoalCount(history, goal.keys, weekDates);
-    const pct = Math.min(100, Math.round((count/goal.target)*100));
+    const pct = Math.min(100, Math.round((count/target)*100));
     const row = document.createElement('div');
     row.className = 'goal-row';
     row.innerHTML = `
       <div class="goal-top">
         <span class="goal-name">${goal.label}</span>
-        <span class="goal-count">${count}/${goal.target} dias esta semana</span>
+        <span class="goal-count">${count}/${target} dias esta semana</span>
       </div>
       <div class="goal-track"><div class="goal-fill" style="width:${pct}%"></div></div>
     `;
@@ -2615,6 +2619,7 @@ function fillConfigForm(){
   document.getElementById('cfg-study-pref').value = cfg.studyPref;
   document.getElementById('cfg-gym-leave').value = cfg.gymLeave;
   document.getElementById('cfg-gym-leave-tue').value = cfg.gymLeaveTue;
+  document.getElementById('cfg-gym-weekly-target').value = cfg.gymWeeklyTarget;
   document.getElementById('cfg-therapy-start').value = cfg.therapyStart;
   document.getElementById('cfg-therapy-end').value = cfg.therapyEnd;
   document.getElementById('cfg-gym-strength').value = cfg.gymStrength;
@@ -2838,6 +2843,7 @@ function saveConfigFromForm(){
     studyPref: document.getElementById('cfg-study-pref').value,
     gymLeave: document.getElementById('cfg-gym-leave').value,
     gymLeaveTue: document.getElementById('cfg-gym-leave-tue').value,
+    gymWeeklyTarget: Number(document.getElementById('cfg-gym-weekly-target').value) || 4,
     therapyStart: document.getElementById('cfg-therapy-start').value,
     therapyEnd: document.getElementById('cfg-therapy-end').value,
     gymStrength: Number(document.getElementById('cfg-gym-strength').value),
