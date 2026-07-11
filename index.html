@@ -549,7 +549,7 @@
             </div>
             <label>Subtramina: minutos antes do almoço</label>
             <input type="number" id="cfg-sub-before" value="15" min="0" step="5">
-            <label>Syntroid: minutos antes do café</label>
+            <label>Synthroid: minutos antes do café</label>
             <input type="number" id="cfg-syntroid-before" value="30" min="0" step="5">
           </div>
         </div>
@@ -849,13 +849,15 @@ function natureIcon(pose){
 
 // ---------- Estoque de remédios/vitaminas ----------
 const MED_STOCK_LABELS = {
-  syntroid: 'Syntroid',
+  syntroid: 'Synthroid',
   natifa_pro: 'Natifa Pro',
   omega3: 'Ômega 3',
   subtramina: 'Subtramina',
   calde_max: 'Calde Max',
   fisiogen: 'Fisiogen',
-  vitamina_d: 'Vitamina D',
+  vitamina_d: 'Adera 7000',
+  inelatte_zero: 'Inelatte Zero',
+  whey_protein: 'WheyProtein - 1 dose',
 };
 const LOW_STOCK_THRESHOLD = 5;
 function medStockKeyFor(blockKey){
@@ -1097,15 +1099,19 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
     blocks.push({key:'meditation', icon:'meditate', title:'Meditação', start: lunch + dur, minutes: cfg.meditationMin});
   }
 
-  blocks.push({key:'syntroid', icon:'pill', title:'Syntroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
+  blocks.push({key:'syntroid', icon:'pill', title:'Synthroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
   blocks.push({key:'natifa_pro', icon:'pill', title:'Natifa Pro', start: breakfast, minutes: 0, instant:true});
   blocks.push({key:'omega3', icon:'fish', title:'Ômega 3', start: breakfast, minutes: 0, instant:true});
+  blocks.push({key:'inelatte_zero', icon:'pill', title:'Inelatte Zero', start: toMin('10:00'), minutes: 0, instant:true});
   blocks.push({key:'subtramina', icon:'pill', title:'Subtramina', start: lunch - cfg.subBefore, minutes: 0, instant:true});
   blocks.push({key:'calde_max', icon:'pill', title:'Calde Max', start: lunch + dur, minutes: 0, instant:true});
   blocks.push({key:'fisiogen_lunch', icon:'pill', title:'Fisiogen', start: lunch + dur + 30, minutes: 0, instant:true});
   blocks.push({key:'fisiogen_dinner', icon:'pill', title:'Fisiogen', start: dinner + dur + 30, minutes: 0, instant:true});
   if(dow === 5){
-    blocks.push({key:'vitamina_d', icon:'sun', title:'Vitamina D', start: lunch, minutes: 0, instant:true});
+    blocks.push({key:'vitamina_d', icon:'sun', title:'Adera 7000', start: lunch, minutes: 0, instant:true});
+  }
+  if(!travelMode && isWeekday && gymDuration > 0){
+    blocks.push({key:'whey_protein', icon:'pill', title:'WheyProtein - 1 dose', start: gymEnd, minutes: 0, instant:true});
   }
 
   blocks.sort((a,b)=>a.start-b.start);
@@ -2235,7 +2241,7 @@ function computeDayCompletion(cfg, history, dateStr){
 }
 
 // ---------- Selos de conquista ----------
-const MED_BLOCK_KEYS = ['syntroid','natifa_pro','omega3','subtramina','calde_max','fisiogen_lunch','fisiogen_dinner','vitamina_d'];
+const MED_BLOCK_KEYS = ['syntroid','natifa_pro','omega3','inelatte_zero','subtramina','calde_max','fisiogen_lunch','fisiogen_dinner','vitamina_d','whey_protein'];
 
 const BADGES = [
   {id:'streak7', icon:'🔥', label:'7 dias seguidos', check: s => s.bestStreak >= 7},
