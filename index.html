@@ -202,6 +202,9 @@
     transition:height .3s;
   }
   .bar-col span{font-size:.7rem;color:var(--muted);margin-top:4px;}
+  .heatmap{display:flex;gap:3px;overflow-x:auto;padding-bottom:4px;}
+  .heatmap-week{display:flex;flex-direction:column;gap:3px;}
+  .heatmap-day{width:11px;height:11px;border-radius:3px;background:var(--border);}
   .modal-bg{
     position:fixed;inset:0;background:rgba(0,0,0,.45);
     display:none;align-items:center;justify-content:center;z-index:50;padding:20px;
@@ -253,6 +256,16 @@
     <div class="card" id="calendar-card" style="display:none;">
       <h2>📅 Agenda de hoje</h2>
       <div id="calendar-list"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="border:none;padding:0;">
+        <div class="icon">✈️</div>
+        <div class="info">
+          <div class="title">Modo viagem hoje</div>
+          <div class="time">Pausa academia e terapia sem quebrar sua sequência</div>
+        </div>
+        <button class="timer-btn" id="btn-travel-toggle" type="button">Ativar</button>
+      </div>
     </div>
     <div class="card">
       <h2>Sua rotina de hoje</h2>
@@ -407,6 +420,29 @@
       <label>Link secreto do iCal</label>
       <input type="text" id="cfg-calendar-ical" placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics">
     </div>
+
+    <div class="card">
+      <h2>Estoque de remédios e vitaminas</h2>
+      <div class="time" style="margin-bottom:8px;">Quantas doses restam de cada um. Desconta 1 automaticamente sempre que você marcar como tomado na aba Remédios.</div>
+      <div id="stock-fields"></div>
+    </div>
+
+    <div class="card">
+      <h2>Frases motivacionais</h2>
+      <div class="time" style="margin-bottom:8px;">Adicione frases suas pra aparecerem no topo, junto com as padrão.</div>
+      <label>Nova frase</label>
+      <input type="text" id="cfg-new-phrase" placeholder="Escreva sua frase...">
+      <button class="save-btn" id="btn-add-phrase" type="button" style="margin-top:8px;">Adicionar frase</button>
+      <div id="custom-phrases-list" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Backup dos dados</h2>
+      <div class="time" style="margin-bottom:8px;">Seus dados ficam só neste navegador. Exporte de vez em quando pra não perder tudo se limpar o navegador ou trocar de celular.</div>
+      <button class="save-btn" id="btn-export-backup" type="button">Exportar backup</button>
+      <button class="save-btn" id="btn-import-backup" type="button" style="margin-top:8px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Importar backup</button>
+      <input type="file" id="input-import-backup" accept="application/json" style="display:none;">
+    </div>
   </section>
 
   <!-- TAB: PROGRESSO -->
@@ -422,6 +458,10 @@
     <div class="card">
       <h2>Últimos 7 dias</h2>
       <div class="bars" id="bars"></div>
+    </div>
+    <div class="card">
+      <h2>Últimos 3 meses</h2>
+      <div class="heatmap" id="heatmap"></div>
     </div>
   </section>
 
@@ -469,6 +509,57 @@ function loadHistory(){
 function saveHistory(h){
   localStorage.setItem('rotina_history', JSON.stringify(h));
 }
+
+// ---------- Estoque de remédios/vitaminas ----------
+const MED_STOCK_LABELS = {
+  syntroid: 'Syntroid',
+  natifa_omega: 'Natifa Pro + Ômega 3',
+  subtramina: 'Subtramina',
+  calde_max: 'Calde Max',
+  fisiogen: 'Fisiogen',
+  vitamina_d: 'Vitamina D',
+};
+const LOW_STOCK_THRESHOLD = 5;
+function medStockKeyFor(blockKey){
+  if(blockKey === 'fisiogen_lunch' || blockKey === 'fisiogen_dinner') return 'fisiogen';
+  return blockKey;
+}
+function loadStock(){
+  const raw = localStorage.getItem('rotina_stock');
+  return raw ? JSON.parse(raw) : {};
+}
+function saveStock(s){
+  localStorage.setItem('rotina_stock', JSON.stringify(s));
+}
+function adjustStock(blockKey, delta){
+  const stockKey = medStockKeyFor(blockKey);
+  const s = loadStock();
+  if(typeof s[stockKey] !== 'number') return;
+  s[stockKey] = Math.max(0, s[stockKey] + delta);
+  saveStock(s);
+}
+
+// ---------- Snooze de lembretes ----------
+function loadSnooze(){
+  const raw = localStorage.getItem('rotina_snooze');
+  return raw ? JSON.parse(raw) : {};
+}
+function saveSnooze(s){
+  localStorage.setItem('rotina_snooze', JSON.stringify(s));
+}
+function snoozeItem(itemKey, minutes){
+  const s = loadSnooze();
+  const dk = todayKey();
+  if(!s[dk]) s[dk] = {};
+  s[dk][itemKey] = Date.now() + minutes*60000;
+  saveSnooze(s);
+  // allow a fresh notification once the snooze window passes
+  const notified = JSON.parse(localStorage.getItem('rotina_notified') || '{}');
+  if(notified[dk] && notified[dk][itemKey]){
+    delete notified[dk][itemKey];
+    localStorage.setItem('rotina_notified', JSON.stringify(notified));
+  }
+}
 function todayKey(){
   const d = new Date();
   return d.toISOString().slice(0,10);
@@ -484,7 +575,7 @@ function toHHMM(mins){
 }
 
 // ---------- Schedule generation ----------
-function buildSchedule(cfg, dow){
+function buildSchedule(cfg, dow, travelMode){
   const isTuesday = dow === 2;
   const wake = toMin(cfg.wake);
   const sleep = toMin(cfg.sleep) < wake ? toMin(cfg.sleep)+1440 : toMin(cfg.sleep);
@@ -499,8 +590,9 @@ function buildSchedule(cfg, dow){
   const blocks = []; // {key, icon, title, start, minutes}
 
   // Fixed appointments in the morning (gym always, therapy on Tuesdays), in order.
-  const fixedMorning = [{start: gymLeave, end: gymEnd}];
-  if(isTuesday){
+  // Skipped entirely in travel mode: no gym, no therapy that day.
+  const fixedMorning = travelMode ? [] : [{start: gymLeave, end: gymEnd}];
+  if(isTuesday && !travelMode){
     fixedMorning.push({start: toMin(cfg.therapyStart), end: toMin(cfg.therapyEnd)});
   }
   fixedMorning.sort((a,b)=>a.start-b.start);
@@ -561,8 +653,8 @@ function buildSchedule(cfg, dow){
   // study fills remaining morning/evening room according to preference
   place(cfg.studyMin, 'study', '📚', 'Estudo', cfg.studyPref);
 
-  // fixed gym block: travel out, strength, cardio, travel back
-  if(gymRoundTrip > 0){
+  // fixed gym block: travel out, strength, cardio, travel back (skipped in travel mode)
+  if(!travelMode && gymRoundTrip > 0){
     let cursor = gymLeave;
     if(travel > 0){
       blocks.push({key:'gym_travel_out', icon:'🚗', title:'Deslocamento (ida)', start: cursor, minutes: travel});
@@ -582,8 +674,8 @@ function buildSchedule(cfg, dow){
     }
   }
 
-  // therapy, Tuesdays only
-  if(isTuesday){
+  // therapy, Tuesdays only (skipped in travel mode)
+  if(isTuesday && !travelMode){
     const tStart = toMin(cfg.therapyStart);
     const tEnd = toMin(cfg.therapyEnd);
     blocks.push({key:'therapy', icon:'💬', title:'Terapia', start: tStart, minutes: tEnd - tStart});
@@ -613,14 +705,29 @@ function buildSchedule(cfg, dow){
 
   blocks.sort((a,b)=>a.start-b.start);
 
-  const gymConflict = gymEnd > workStart;
+  const gymConflict = !travelMode && gymEnd > workStart;
 
-  return { blocks, workStart, workEnd, wake, sleep, gymEnd, gymConflict };
+  return { blocks, workStart, workEnd, wake, sleep, gymEnd, gymConflict, travelMode: !!travelMode };
+}
+
+// ---------- Modo viagem ----------
+function loadTravelDays(){
+  const raw = localStorage.getItem('rotina_travel_days');
+  return raw ? JSON.parse(raw) : [];
+}
+function isTravelDay(dateStr){
+  return loadTravelDays().includes(dateStr);
+}
+function setTravelDay(dateStr, on){
+  let days = loadTravelDays();
+  if(on){ if(!days.includes(dateStr)) days.push(dateStr); }
+  else { days = days.filter(d => d !== dateStr); }
+  localStorage.setItem('rotina_travel_days', JSON.stringify(days));
 }
 
 function scheduleForDate(cfg, dateStr){
   const dow = new Date(dateStr+'T12:00:00').getDay();
-  return buildSchedule(cfg, dow);
+  return buildSchedule(cfg, dow, isTravelDay(dateStr));
 }
 
 // ---------- Rendering: Hoje ----------
@@ -776,6 +883,10 @@ function renderRemedios(){
     return;
   }
 
+  const stock = loadStock();
+  const snoozeMap = (loadSnooze()[key] || {});
+  const now2 = Date.now();
+
   items.forEach(b=>{
     const start = ((b.start % 1440) + 1440) % 1440;
     const done = !!todayData[b.key];
@@ -784,6 +895,8 @@ function renderRemedios(){
     let statusHtml = '';
     if(done){
       statusHtml = `<div class="time" style="color:var(--primary);">✓ Tomado</div>`;
+    } else if(snoozeMap[b.key] && now2 < snoozeMap[b.key]){
+      statusHtml = `<div class="time">⏰ lembrete adiado</div>`;
     } else if(nowMin >= start){
       row.style.background = 'rgba(255,97,97,0.14)';
       row.style.borderRadius = '10px';
@@ -791,13 +904,20 @@ function renderRemedios(){
     } else {
       statusHtml = `<div class="time">${formatDelta(start - nowMin)}</div>`;
     }
+    const stockKey = medStockKeyFor(b.key);
+    const qty = stock[stockKey];
+    const stockHtml = (typeof qty === 'number' && qty <= LOW_STOCK_THRESHOLD)
+      ? `<span class="tag" style="background:rgba(255,97,97,0.18);color:var(--danger);">restam ${qty}</span>`
+      : '';
+    const snoozeBtn = (!done) ? `<button class="timer-btn snooze-btn" data-key="${b.key}">⏰ 15min</button>` : '';
     row.innerHTML = `
       <div class="icon">${b.icon}</div>
       <div class="info">
-        <div class="title">${b.title}</div>
+        <div class="title">${b.title} ${stockHtml}</div>
         <div class="time">${toHHMM(b.start)}</div>
         ${statusHtml}
       </div>
+      ${snoozeBtn}
       <div class="check ${done?'done':''}" data-key="${b.key}">${done?'✓':''}</div>
     `;
     list.appendChild(row);
@@ -809,11 +929,20 @@ function renderRemedios(){
       const h = loadHistory();
       const dk = todayKey();
       if(!h[dk]) h[dk] = {};
-      h[dk][k] = !h[dk][k];
+      const wasDone = !!h[dk][k];
+      h[dk][k] = !wasDone;
       saveHistory(h);
+      adjustStock(k, wasDone ? 1 : -1);
       syncDoneToServer(dk, k, h[dk][k]);
       renderRemedios();
       renderProgress();
+    });
+  });
+
+  list.querySelectorAll('.snooze-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      snoozeItem(btn.dataset.key, 15);
+      renderRemedios();
     });
   });
 }
@@ -922,6 +1051,7 @@ function checkAlerts(){
   const todayData = history[key] || {};
   const notified = JSON.parse(localStorage.getItem('rotina_notified') || '{}');
   if(!notified[key]) notified[key] = {};
+  const snoozeMap = (loadSnooze()[key] || {});
 
   const now = new Date();
   const nowMin = now.getHours()*60 + now.getMinutes();
@@ -929,7 +1059,8 @@ function checkAlerts(){
 
   items.forEach(b=>{
     const start = ((b.start % 1440) + 1440) % 1440;
-    if(!todayData[b.key] && nowMin >= start && !notified[key][b.key]){
+    const isSnoozed = snoozeMap[b.key] && Date.now() < snoozeMap[b.key];
+    if(!todayData[b.key] && nowMin >= start && !notified[key][b.key] && !isSnoozed){
       notified[key][b.key] = true;
       changed = true;
       if('Notification' in window && Notification.permission === 'granted'){
@@ -969,15 +1100,65 @@ const MOTIVATIONAL_PHRASES = [
   "Pequenos commits diários constroem grandes versões de você.",
 ];
 
+function loadCustomPhrases(){
+  const raw = localStorage.getItem('rotina_custom_phrases');
+  return raw ? JSON.parse(raw) : [];
+}
+function saveCustomPhrases(list){
+  localStorage.setItem('rotina_custom_phrases', JSON.stringify(list));
+}
+
 function renderDailyPhrase(){
   const el = document.getElementById('daily-phrase');
   if(!el) return;
+  const all = MOTIVATIONAL_PHRASES.concat(loadCustomPhrases());
   const start = new Date(new Date().getFullYear(), 0, 0);
   const diff = Date.now() - start.getTime();
   const dayOfYear = Math.floor(diff / 86400000);
-  const phrase = MOTIVATIONAL_PHRASES[dayOfYear % MOTIVATIONAL_PHRASES.length];
+  const phrase = all[dayOfYear % all.length];
   el.textContent = phrase;
 }
+
+function renderCustomPhrasesList(){
+  const el = document.getElementById('custom-phrases-list');
+  if(!el) return;
+  const list = loadCustomPhrases();
+  el.innerHTML = '';
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty">Nenhuma frase própria ainda.</div>';
+    return;
+  }
+  list.forEach((phrase, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="info"><div class="title" style="font-weight:400;">${phrase}</div></div>
+      <button class="timer-btn" data-idx="${idx}" type="button">Remover</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = Number(btn.dataset.idx);
+      const list2 = loadCustomPhrases();
+      list2.splice(idx, 1);
+      saveCustomPhrases(list2);
+      renderCustomPhrasesList();
+      renderDailyPhrase();
+    });
+  });
+}
+document.getElementById('btn-add-phrase').addEventListener('click', ()=>{
+  const input = document.getElementById('cfg-new-phrase');
+  const val = input.value.trim();
+  if(!val) return;
+  const list = loadCustomPhrases();
+  list.push(val);
+  saveCustomPhrases(list);
+  input.value = '';
+  renderCustomPhrasesList();
+  renderDailyPhrase();
+});
 
 // ---------- Clima (GPS + Open-Meteo, sem chave de API) ----------
 const WEATHER_CODE_ICON = {
@@ -1047,19 +1228,45 @@ async function renderCalendar(){
   }
 }
 
+function renderTravelToggle(){
+  const btn = document.getElementById('btn-travel-toggle');
+  if(!btn) return;
+  const active = isTravelDay(todayKey());
+  btn.textContent = active ? 'Desativar' : 'Ativar';
+  if(active){
+    btn.style.background = 'var(--primary)';
+    btn.style.color = '#fff';
+  } else {
+    btn.style.background = 'transparent';
+    btn.style.color = 'var(--primary)';
+  }
+}
+document.getElementById('btn-travel-toggle').addEventListener('click', ()=>{
+  const key = todayKey();
+  setTravelDay(key, !isTravelDay(key));
+  renderTravelToggle();
+  renderSchedule();
+  renderRemedios();
+  renderProgress();
+});
+
 // ---------- Progress ----------
+function computeDayCompletion(cfg, history, dateStr){
+  const dayBlocks = scheduleForDate(cfg, dateStr).blocks;
+  const total = dayBlocks.length;
+  const d = history[dateStr];
+  if(!d || total === 0) return 0;
+  let done = 0;
+  dayBlocks.forEach(b=>{ if(d[b.key]) done++; });
+  return done/total;
+}
+
 function renderProgress(){
   const cfg = loadConfig();
   const history = loadHistory();
 
   function completionForDay(dateStr){
-    const dayBlocks = scheduleForDate(cfg, dateStr).blocks;
-    const total = dayBlocks.length;
-    const d = history[dateStr];
-    if(!d || total === 0) return 0;
-    let done = 0;
-    dayBlocks.forEach(b=>{ if(d[b.key]) done++; });
-    return done/total;
+    return computeDayCompletion(cfg, history, dateStr);
   }
 
   // streaks: a day counts as "complete" if all tasks done
@@ -1099,6 +1306,44 @@ function renderProgress(){
   });
 }
 
+function renderHeatmap(){
+  const el = document.getElementById('heatmap');
+  if(!el) return;
+  const cfg = loadConfig();
+  const history = loadHistory();
+  const DAYS = 84; // ~12 semanas
+  const dates = [];
+  for(let i = DAYS - 1; i >= 0; i--){
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  const firstDow = new Date(dates[0]+'T12:00:00').getDay();
+  const padded = Array(firstDow).fill(null).concat(dates);
+  el.innerHTML = '';
+  const weekCount = Math.ceil(padded.length / 7);
+  for(let w = 0; w < weekCount; w++){
+    const week = document.createElement('div');
+    week.className = 'heatmap-week';
+    for(let d = 0; d < 7; d++){
+      const dateStr = padded[w*7+d];
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-day';
+      if(dateStr){
+        const pct = computeDayCompletion(cfg, history, dateStr);
+        cell.title = `${dateStr}: ${Math.round(pct*100)}%`;
+        if(pct >= 0.999) cell.style.background = 'var(--primary)';
+        else if(pct >= 0.5) cell.style.background = 'var(--accent)';
+        else if(pct > 0) cell.style.background = 'var(--primary-light)';
+      } else {
+        cell.style.visibility = 'hidden';
+      }
+      week.appendChild(cell);
+    }
+    el.appendChild(week);
+  }
+}
+
 // ---------- Config form ----------
 function fillConfigForm(){
   const cfg = loadConfig();
@@ -1126,6 +1371,83 @@ function fillConfigForm(){
   document.getElementById('cfg-push-url').value = cfg.pushServerUrl || '';
   document.getElementById('cfg-calendar-ical').value = cfg.calendarIcalUrl || '';
 }
+
+// ---------- Estoque: UI ----------
+function renderStockFields(){
+  const el = document.getElementById('stock-fields');
+  if(!el) return;
+  const stock = loadStock();
+  el.innerHTML = '';
+  Object.keys(MED_STOCK_LABELS).forEach(key=>{
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <label>${MED_STOCK_LABELS[key]} (doses restantes)</label>
+      <input type="number" min="0" step="1" id="stock-${key}" value="${typeof stock[key] === 'number' ? stock[key] : ''}" placeholder="não controlado">
+    `;
+    el.appendChild(wrap);
+  });
+  Object.keys(MED_STOCK_LABELS).forEach(key=>{
+    document.getElementById('stock-'+key).addEventListener('change', (e)=>{
+      const s = loadStock();
+      const val = e.target.value;
+      if(val === ''){ delete s[key]; }
+      else { s[key] = Math.max(0, Number(val)); }
+      saveStock(s);
+      renderRemedios();
+    });
+  });
+}
+
+// ---------- Backup: exportar / importar ----------
+function exportBackup(){
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    config: loadConfig(),
+    history: loadHistory(),
+    theme: localStorage.getItem('rotina_theme') || 'dark',
+    travelDays: loadTravelDays(),
+    stock: loadStock(),
+    customPhrases: loadCustomPhrases(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `floresce-backup-${todayKey()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importBackup(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      if(data.config) saveConfig(data.config);
+      if(data.history) saveHistory(data.history);
+      if(data.theme) localStorage.setItem('rotina_theme', data.theme);
+      if(data.travelDays) localStorage.setItem('rotina_travel_days', JSON.stringify(data.travelDays));
+      if(data.stock) saveStock(data.stock);
+      if(data.customPhrases) saveCustomPhrases(data.customPhrases);
+      alert('Backup importado! A página vai recarregar.');
+      location.reload();
+    } catch(e){
+      alert('Não consegui ler esse arquivo de backup. Confira se é o arquivo certo.');
+    }
+  };
+  reader.readAsText(file);
+}
+document.getElementById('btn-export-backup').addEventListener('click', exportBackup);
+document.getElementById('btn-import-backup').addEventListener('click', ()=>{
+  document.getElementById('input-import-backup').click();
+});
+document.getElementById('input-import-backup').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file) importBackup(file);
+});
 document.getElementById('btn-save-config').addEventListener('click', ()=>{
   const cfg = {
     wake: document.getElementById('cfg-wake').value,
@@ -1157,6 +1479,7 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
   renderSchedule();
   renderRemedios();
   renderProgress();
+  renderHeatmap();
   renderCalendar();
   document.querySelector('nav button[data-tab="hoje"]').click();
 });
@@ -1170,6 +1493,7 @@ document.querySelectorAll('nav button').forEach(btn=>{
       document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
     });
     if(btn.dataset.tab === 'remedios') renderRemedios();
+    if(btn.dataset.tab === 'progresso') renderHeatmap();
   });
 });
 
@@ -1189,6 +1513,16 @@ function initTheme(){
   });
 }
 
+// ---------- Atalhos do ícone (manifest shortcuts) ----------
+function openTabFromQuery(){
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab');
+  if(tab && document.getElementById('tab-'+tab)){
+    const navBtn = document.querySelector(`nav button[data-tab="${tab}"]`);
+    if(navBtn) navBtn.click();
+  }
+}
+
 // ---------- Init ----------
 function setTodayLabel(){
   const days = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
@@ -1201,15 +1535,20 @@ function setTodayLabel(){
 // first-time default: work 09:00-18:00 already set as default above.
 initTheme();
 fillConfigForm();
+renderStockFields();
+renderCustomPhrasesList();
 setTodayLabel();
 renderDailyPhrase();
 initWeather();
+renderTravelToggle();
 renderSchedule();
 renderRemedios();
 renderProgress();
+renderHeatmap();
 renderCalendar();
 updateNotifStatus();
 checkAlerts();
+openTabFromQuery();
 setInterval(checkAlerts, 30000);
 
 if('serviceWorker' in navigator){

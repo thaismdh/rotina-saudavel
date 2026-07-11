@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rotina-saudavel-v4';
+const CACHE_NAME = 'floresce-v7';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json',
