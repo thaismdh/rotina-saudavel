@@ -731,7 +731,8 @@
       <button class="save-btn" id="btn-clear-shopping" type="button" style="margin-top:12px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Limpar lista</button>
     </div>
     <div class="card">
-      <h2>Adicionar item</h2>
+      <h2>Gerenciar itens</h2>
+      <div class="time" style="margin-bottom:8px;">Adicione ou remova qualquer item da lista, inclusive os que já vinham prontos.</div>
       <label>Nome do item</label>
       <input type="text" id="cfg-new-shopping-item" placeholder="Ex.: azeite">
       <button class="save-btn" id="btn-add-shopping-item" type="button">Adicionar item</button>
@@ -1998,7 +1999,10 @@ function slugify(s){
     .toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
 }
 
-const SHOPPING_ITEMS = [
+// Lista inicial (usada só uma vez, na primeira vez que o app roda, pra povoar
+// a lista editável abaixo). Depois disso cada item vira comum: pode adicionar
+// ou remover qualquer um, inclusive os que vieram por padrão.
+const SHOPPING_ITEMS_SEED = [
   'Arroz','Feijão','Lentilha','Tilápia','Salmão','Leite de amêndoa','Pipoca',
   'Macarrão pra sopa','Legumes congelados','Mamão','Banana','Iogurte','Gelatina',
   'Maçã','Beterraba','Couve','Ovo','Queijo branco',
@@ -2006,7 +2010,16 @@ const SHOPPING_ITEMS = [
 
 function loadShoppingCustom(){
   const raw = localStorage.getItem('rotina_shopping_custom');
-  return raw ? JSON.parse(raw) : [];
+  let list = raw ? JSON.parse(raw) : [];
+  if(!localStorage.getItem('rotina_shopping_migrated')){
+    const existingLower = list.map(n=>n.toLowerCase());
+    SHOPPING_ITEMS_SEED.forEach(item=>{
+      if(!existingLower.includes(item.toLowerCase())) list.push(item);
+    });
+    localStorage.setItem('rotina_shopping_migrated', '1');
+    localStorage.setItem('rotina_shopping_custom', JSON.stringify(list));
+  }
+  return list;
 }
 function saveShoppingCustom(list){
   localStorage.setItem('rotina_shopping_custom', JSON.stringify(list));
@@ -2021,7 +2034,7 @@ function saveShoppingState(s){
   markDirtyAndSync();
 }
 function allShoppingItems(){
-  return SHOPPING_ITEMS.concat(loadShoppingCustom());
+  return loadShoppingCustom();
 }
 
 function renderShoppingList(){
