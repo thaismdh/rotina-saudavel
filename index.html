@@ -563,6 +563,7 @@
         <div><span id="streak-best">0</span><small>melhor sequência</small></div>
         <div><span id="streak-week">0%</span><small>últimos 7 dias</small></div>
       </div>
+      <div id="progress-start-note" style="margin-top:10px;font-size:.78rem;color:var(--muted);text-align:center;"></div>
       <div id="streak-message" style="margin-top:12px;font-size:.85rem;color:var(--muted);display:none;"></div>
       <div id="mood-correlation" style="margin-top:12px;font-size:.85rem;color:var(--muted);display:none;"></div>
     </div>
@@ -704,6 +705,22 @@ function loadHistory(){
 }
 function saveHistory(h){
   localStorage.setItem('rotina_history', JSON.stringify(h));
+  markDirtyAndSync();
+}
+
+// ---------- Contar progresso a partir de uma data ----------
+function loadProgressStart(){
+  let start = localStorage.getItem('rotina_progress_start');
+  if(!start){
+    const now = new Date();
+    start = localDateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+    localStorage.setItem('rotina_progress_start', start);
+    markDirtyAndSync();
+  }
+  return start;
+}
+function saveProgressStart(dateStr){
+  localStorage.setItem('rotina_progress_start', dateStr);
   markDirtyAndSync();
 }
 
@@ -1380,6 +1397,7 @@ function buildSyncPayload(){
     shoppingState: loadShoppingState(),
     shoppingCustom: loadShoppingCustom(),
     therapyJournal: loadTherapyJournal(),
+    progressStart: loadProgressStart(),
   };
 }
 
@@ -1396,6 +1414,7 @@ function applySyncedState(state){
   if(state.shoppingState) localStorage.setItem('rotina_shopping_state', JSON.stringify(state.shoppingState));
   if(state.shoppingCustom) localStorage.setItem('rotina_shopping_custom', JSON.stringify(state.shoppingCustom));
   if(state.therapyJournal) localStorage.setItem('rotina_therapy_journal', JSON.stringify(state.therapyJournal));
+  if(state.progressStart) localStorage.setItem('rotina_progress_start', state.progressStart);
 
   // Re-renderiza tudo com os dados sincronizados, sem disparar um novo push
   // (essas chamadas de render não passam pelas funções save*, então não re-agendam sync).
@@ -2039,7 +2058,9 @@ function computeBestStreakEver(cfg, history){
   const keys = Object.keys(history);
   if(keys.length === 0) return 0;
   keys.sort();
-  const cursor = new Date(keys[0]+'T12:00:00');
+  const progressStart = loadProgressStart();
+  const firstKey = keys[0] < progressStart ? progressStart : keys[0];
+  const cursor = new Date(firstKey+'T12:00:00');
   const today = new Date();
   let best = 0, run = 0;
   while(cursor <= today){
@@ -2051,9 +2072,11 @@ function computeBestStreakEver(cfg, history){
   return best;
 }
 
-function computeTotalDoses(history){
+function computeTotalDoses(history, startKey){
   let total = 0;
-  Object.values(history).forEach(day=>{
+  Object.keys(history).forEach(dateStr=>{
+    if(startKey && dateStr < startKey) return;
+    const day = history[dateStr];
     MED_BLOCK_KEYS.forEach(k=>{ if(day[k]) total++; });
   });
   return total;
@@ -2062,7 +2085,7 @@ function computeTotalDoses(history){
 function renderBadges(cfg, history){
   const el = document.getElementById('badges-grid');
   if(!el) return;
-  const stats = { bestStreak: computeBestStreakEver(cfg, history), totalDoses: computeTotalDoses(history) };
+  const stats = { bestStreak: computeBestStreakEver(cfg, history), totalDoses: computeTotalDoses(history, loadProgressStart()) };
   el.innerHTML = '';
   BADGES.forEach(b=>{
     const unlocked = b.check(stats);
@@ -2211,11 +2234,14 @@ function renderProgress(){
   }
 
   // streaks: a day counts as "complete" if all tasks done
+  const progressStart = loadProgressStart();
   const dates = [];
   for(let i=0;i<60;i++){
     const d = new Date();
     d.setDate(d.getDate()-i);
-    dates.push(localDateKey(d));
+    const key = localDateKey(d);
+    if(key < progressStart) break;
+    dates.push(key);
   }
   let current = 0;
   for(const d of dates){
@@ -2227,11 +2253,13 @@ function renderProgress(){
     else run = 0;
   }
   const last7 = dates.slice(0,7);
-  const avg7 = last7.reduce((a,d)=>a+completionForDay(d),0)/7;
+  const avg7 = last7.length ? last7.reduce((a,d)=>a+completionForDay(d),0)/last7.length : 0;
 
   document.getElementById('streak-current').textContent = current;
   document.getElementById('streak-best').textContent = best;
   document.getElementById('streak-week').textContent = Math.round(avg7*100)+'%';
+  const startNoteEl = document.getElementById('progress-start-note');
+  if(startNoteEl) startNoteEl.textContent = `Contando desde ${formatDatePtBr(progressStart)}`;
 
   const msgEl = document.getElementById('streak-message');
   if(msgEl){
@@ -2286,23 +2314,30 @@ function renderMonthlyChart(cfg, history){
   const el = document.getElementById('monthly-bars');
   if(!el) return;
   const monthNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const progressStart = loadProgressStart();
+  const startDate = new Date(progressStart+'T12:00:00');
+  const startMonthIdx = startDate.getFullYear()*12 + startDate.getMonth();
   const months = [];
   const now = new Date();
   for(let i = 5; i >= 0; i--){
     const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    if(m.getFullYear()*12 + m.getMonth() < startMonthIdx) continue;
     months.push(m);
   }
   el.innerHTML = '';
   months.forEach(m=>{
     const year = m.getFullYear(), month = m.getMonth();
     const isCurrentMonth = (year === now.getFullYear() && month === now.getMonth());
+    const isStartMonth = (year === startDate.getFullYear() && month === startDate.getMonth());
+    const firstDay = isStartMonth ? startDate.getDate() : 1;
     const lastDay = isCurrentMonth ? now.getDate() : new Date(year, month+1, 0).getDate();
     let total = 0;
-    for(let day = 1; day <= lastDay; day++){
+    const daysCounted = Math.max(0, lastDay - firstDay + 1);
+    for(let day = firstDay; day <= lastDay; day++){
       const d = new Date(year, month, day);
       total += computeDayCompletion(cfg, history, localDateKey(d));
     }
-    const pct = lastDay > 0 ? total / lastDay : 0;
+    const pct = daysCounted > 0 ? total / daysCounted : 0;
     const col = document.createElement('div');
     col.className = 'bar-col';
     col.innerHTML = `<div class="bar" style="height:${Math.max(4,pct*100)}%"></div><span>${monthNames[month]}</span>`;
@@ -2337,6 +2372,7 @@ function renderHeatmap(){
   if(!el) return;
   const cfg = loadConfig();
   const history = loadHistory();
+  const progressStart = loadProgressStart();
   const DAYS = 84; // ~12 semanas
   const dates = [];
   for(let i = DAYS - 1; i >= 0; i--){
@@ -2356,7 +2392,7 @@ function renderHeatmap(){
       const cell = document.createElement('div');
       cell.className = 'heatmap-day';
       if(dateStr){
-        const pct = computeDayCompletion(cfg, history, dateStr);
+        const pct = dateStr < progressStart ? 0 : computeDayCompletion(cfg, history, dateStr);
         cell.title = `${dateStr}: ${Math.round(pct*100)}%`;
         if(pct >= 0.999) cell.style.background = 'var(--primary)';
         else if(pct >= 0.5) cell.style.background = 'var(--primary-mid)';
