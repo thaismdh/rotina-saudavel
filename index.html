@@ -849,11 +849,12 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
   }
   fixedMorning.sort((a,b)=>a.start-b.start);
 
-  // Morning practice (oração/daimoku), done right as she wakes, before getting out of bed.
-  if(cfg.morningPracticeEnabled && cfg.morningPracticeMin > 0){
+  // Morning practice (oração), só em dias de semana, feita ao acordar.
+  const morningPracticeActive = isWeekday && cfg.morningPracticeEnabled && cfg.morningPracticeMin > 0;
+  if(morningPracticeActive){
     blocks.push({key:'morning_practice', icon:'pray', title:'Oração', start: wake, minutes: cfg.morningPracticeMin});
   }
-  const morningStart = wake + (cfg.morningPracticeEnabled ? cfg.morningPracticeMin : 0);
+  const morningStart = wake + (morningPracticeActive ? cfg.morningPracticeMin : 0);
 
   // Morning windows available for study: the gaps between the morning practice,
   // the fixed appointments, and the start of work.
@@ -892,8 +893,9 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
     w.cursor += minutes;
   }
 
-  // study fills remaining morning/evening room according to preference (paused on dia livre/feriado)
-  if(!skipStudy){
+  // study fills remaining morning/evening room according to preference (só dias de semana,
+  // e pausado no modo dia livre/feriado)
+  if(!skipStudy && isWeekday){
     place(cfg.studyMin, 'study', 'study', 'Estudo', cfg.studyPref);
   }
 
@@ -940,8 +942,8 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
   const dinner = toMin(cfg.mealDinner);
   const dur = cfg.mealDuration;
 
-  // Meditação, depois do almoço
-  if(cfg.meditationMin > 0){
+  // Meditação, depois do almoço, só em dias de semana
+  if(isWeekday && cfg.meditationMin > 0){
     blocks.push({key:'meditation', icon:'meditate', title:'Meditação', start: lunch + dur, minutes: cfg.meditationMin});
   }
 
@@ -1048,6 +1050,8 @@ function renderSchedule(){
   const key = todayKey();
   const built = scheduleForDate(cfg, key);
   const { workStart, workEnd, gymEnd, gymConflict } = built;
+  const dow = new Date(key+'T12:00:00').getDay();
+  const isWeekday = dow >= 1 && dow <= 5;
   const blocks = built.blocks.filter(b => !b.instant);
   const history = loadHistory();
   if(!history[key]) history[key] = {};
@@ -1068,7 +1072,7 @@ function renderSchedule(){
     return;
   }
 
-  let workInserted = false;
+  let workInserted = !isWeekday; // não mostra o bloco de trabalho em fins de semana
   blocks.forEach(b=>{
     if(!workInserted && b.start >= workStart){
       const div = document.createElement('div');
