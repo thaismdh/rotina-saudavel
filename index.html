@@ -654,6 +654,7 @@ function loadConfig(){
 }
 function saveConfig(cfg){
   localStorage.setItem('rotina_config', JSON.stringify(cfg));
+  markDirtyAndSync();
 }
 function loadHistory(){
   const raw = localStorage.getItem('rotina_history');
@@ -661,6 +662,7 @@ function loadHistory(){
 }
 function saveHistory(h){
   localStorage.setItem('rotina_history', JSON.stringify(h));
+  markDirtyAndSync();
 }
 
 // ---------- Ícones do gatinho por categoria ----------
@@ -726,6 +728,7 @@ function loadStock(){
 }
 function saveStock(s){
   localStorage.setItem('rotina_stock', JSON.stringify(s));
+  markDirtyAndSync();
 }
 function adjustStock(blockKey, delta){
   const stockKey = medStockKeyFor(blockKey);
@@ -743,6 +746,7 @@ function loadMood(){
 }
 function saveMood(m){
   localStorage.setItem('rotina_mood', JSON.stringify(m));
+  markDirtyAndSync();
 }
 function setTodayMood(value){
   const m = loadMood();
@@ -971,6 +975,7 @@ function setTravelDay(dateStr, on){
   if(on){ if(!days.includes(dateStr)) days.push(dateStr); }
   else { days = days.filter(d => d !== dateStr); }
   localStorage.setItem('rotina_travel_days', JSON.stringify(days));
+  markDirtyAndSync();
 }
 
 // ---------- Dia livre / feriado ----------
@@ -986,6 +991,7 @@ function setFreeDay(dateStr, on){
   if(on){ if(!days.includes(dateStr)) days.push(dateStr); }
   else { days = days.filter(d => d !== dateStr); }
   localStorage.setItem('rotina_free_days', JSON.stringify(days));
+  markDirtyAndSync();
 }
 
 function scheduleForDate(cfg, dateStr){
@@ -1320,6 +1326,92 @@ function updatePushStatus(text){
   if(el) el.textContent = text;
 }
 
+// ---------- Sincronizar entre aparelhos (via o mesmo Worker do push) ----------
+function buildSyncPayload(){
+  return {
+    config: loadConfig(),
+    history: loadHistory(),
+    stock: loadStock(),
+    travelDays: loadTravelDays(),
+    freeDays: loadFreeDays(),
+    mood: loadMood(),
+    customPhrases: loadCustomPhrases(),
+    theme: localStorage.getItem('rotina_theme') || 'dark',
+  };
+}
+
+function applySyncedState(state){
+  if(!state) return;
+  if(state.config) localStorage.setItem('rotina_config', JSON.stringify(state.config));
+  if(state.history) localStorage.setItem('rotina_history', JSON.stringify(state.history));
+  if(state.stock) localStorage.setItem('rotina_stock', JSON.stringify(state.stock));
+  if(state.travelDays) localStorage.setItem('rotina_travel_days', JSON.stringify(state.travelDays));
+  if(state.freeDays) localStorage.setItem('rotina_free_days', JSON.stringify(state.freeDays));
+  if(state.mood) localStorage.setItem('rotina_mood', JSON.stringify(state.mood));
+  if(state.customPhrases) localStorage.setItem('rotina_custom_phrases', JSON.stringify(state.customPhrases));
+  if(state.theme) localStorage.setItem('rotina_theme', state.theme);
+
+  // Re-renderiza tudo com os dados sincronizados, sem disparar um novo push
+  // (essas chamadas de render não passam pelas funções save*, então não re-agendam sync).
+  applyTheme(localStorage.getItem('rotina_theme') || 'dark');
+  fillConfigForm();
+  renderStockFields();
+  renderCustomPhrasesList();
+  renderMood();
+  renderNextUp();
+  renderSchedule();
+  renderRemedios();
+  renderProgress();
+  renderHeatmap();
+  renderTravelToggle();
+  renderRestToggle();
+  renderCalendar();
+}
+
+let __syncDebounceTimer = null;
+function markDirtyAndSync(){
+  localStorage.setItem('rotina_state_updated_at', String(Date.now()));
+  clearTimeout(__syncDebounceTimer);
+  __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
+}
+
+async function pushStateToServer(){
+  const cfg = loadConfig();
+  if(!cfg.pushServerUrl) return;
+  const updatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || Date.now();
+  try{
+    const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: buildSyncPayload(), updatedAt }),
+    });
+    const data = await res.json();
+    if(data && data.applied === false && data.state){
+      // outro aparelho salvou algo mais recente enquanto isso; adota o dele
+      localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
+      applySyncedState(data.state);
+    }
+  } catch(e){ /* offline ou servidor indisponível; tenta de novo na próxima mudança */ }
+}
+
+async function pullStateOnLoad(){
+  const cfg = loadConfig();
+  if(!cfg.pushServerUrl) return;
+  try{
+    const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state');
+    const data = await res.json();
+    if(!data || !data.state) return;
+    const localUpdatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || 0;
+    if(data.updatedAt > localUpdatedAt){
+      localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
+      applySyncedState(data.state);
+    } else if(localUpdatedAt > 0){
+      // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
+      pushStateToServer();
+    }
+  } catch(e){ /* offline; a próxima abertura do app tenta de novo */ }
+}
+
 document.getElementById('btn-enable-push').addEventListener('click', async ()=>{
   const cfg = loadConfig();
   if(!cfg.pushServerUrl){
@@ -1514,6 +1606,7 @@ function loadCustomPhrases(){
 }
 function saveCustomPhrases(list){
   localStorage.setItem('rotina_custom_phrases', JSON.stringify(list));
+  markDirtyAndSync();
 }
 
 function renderDailyPhrase(){
@@ -2330,6 +2423,7 @@ function initTheme(){
     const next = document.body.classList.contains('theme-light') ? 'dark' : 'light';
     localStorage.setItem('rotina_theme', next);
     applyTheme(next);
+    markDirtyAndSync();
   });
 }
 
@@ -2378,6 +2472,8 @@ checkAlerts();
 openTabFromQuery();
 setInterval(checkAlerts, 30000);
 setInterval(renderNextUp, 30000);
+pullStateOnLoad();
+setInterval(pullStateOnLoad, 60000);
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', async () => {
