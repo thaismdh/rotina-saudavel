@@ -604,6 +604,15 @@
           </div>
 
           <div class="card">
+            <h2>Resumo semanal</h2>
+            <div class="time" style="margin-bottom:8px;">Uma notificação toda segunda-feira (no mesmo horário do resumo diário) com sua adesão e metas da semana anterior.</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="cfg-weekly-summary-enabled" checked>
+              <label>Ativar resumo semanal</label>
+            </div>
+          </div>
+
+          <div class="card">
             <h2>💧 Lembrete de água</h2>
             <div class="time" style="margin-bottom:8px;">Notifica de tempos em tempos, entre acordar e dormir, pra você beber água. Funciona enquanto o app estiver aberto no navegador.</div>
             <div class="checkbox-row">
@@ -725,6 +734,10 @@
       <div id="mood-correlation" style="margin-top:12px;font-size:.85rem;color:var(--muted);display:none;"></div>
     </div>
     <div class="card">
+      <h2>Humor ao longo do tempo</h2>
+      <div class="bars" id="mood-bars"></div>
+    </div>
+    <div class="card">
       <h2>Últimos 7 dias</h2>
       <div class="bars" id="bars"></div>
     </div>
@@ -817,6 +830,7 @@ const DEFAULT_CONFIG = {
   pushServerUrl: "https://rotina-push.thaismdh.workers.dev",
   calendarIcalUrl: "",
   dailySummaryEnabled: true, dailySummaryTime: "07:00",
+  weeklySummaryEnabled: true,
   reminderSoundEnabled: true,
   waterEnabled: true, waterGoal: 8, waterIntervalMin: 120
 };
@@ -1842,6 +1856,7 @@ function checkAlerts(){
 
   checkWaterReminder(cfg, key);
   checkDailySummary(cfg, key, built);
+  checkWeeklySummary(cfg, key);
   updateNavBadges();
 }
 
@@ -1950,6 +1965,38 @@ function checkDailySummary(cfg, key, built){
   sent[key] = true;
   localStorage.setItem('rotina_daily_summary_sent', JSON.stringify(sent));
   new Notification('🌱 Resumo do seu dia', { body: buildDailySummaryText(built) });
+}
+
+// ---------- Resumo semanal ----------
+function buildWeeklySummaryText(cfg, history){
+  const lastWeekBase = new Date();
+  lastWeekBase.setDate(lastWeekBase.getDate() - 7);
+  const weekDates = getWeekDates(lastWeekBase);
+  const total = weekDates.reduce((sum, d) => sum + computeDayCompletion(cfg, history, d), 0);
+  const avgPct = Math.round((total / 7) * 100);
+  const parts = [`Adesão geral: ${avgPct}%`];
+  Object.entries(WEEKLY_GOALS).forEach(([key, goal]) => {
+    const cfgKey = WEEKLY_GOAL_TARGET_CFG_KEYS[key];
+    const target = (cfgKey && cfg[cfgKey]) || goal.target;
+    const count = weeklyGoalCount(history, goal.keys, weekDates);
+    parts.push(`${goal.label}: ${count}/${target}`);
+  });
+  return parts.join(' · ');
+}
+function checkWeeklySummary(cfg, key){
+  if(cfg.weeklySummaryEnabled === false) return;
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const now = new Date();
+  if(now.getDay() !== 1) return; // só na segunda-feira
+  const summaryTime = toMin(cfg.dailySummaryTime || '07:00');
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  if(nowMin < summaryTime) return;
+  const sent = JSON.parse(localStorage.getItem('rotina_weekly_summary_sent') || '{}');
+  if(sent[key]) return;
+  sent[key] = true;
+  localStorage.setItem('rotina_weekly_summary_sent', JSON.stringify(sent));
+  const history = loadHistory();
+  new Notification('📊 Resumo da sua semana', { body: buildWeeklySummaryText(cfg, history) });
 }
 
 // ---------- Frase motivacional do dia ----------
@@ -2250,16 +2297,27 @@ function renderTherapyJournal(){
     row.innerHTML = `
       <div class="title">${formatDatePtBr(dateStr)}</div>
       <div class="time" style="white-space:pre-wrap;margin-top:4px;">${journal[dateStr]}</div>
-      <button class="timer-btn" data-date="${dateStr}" type="button" style="margin-top:8px;">Remover</button>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="timer-btn edit-therapy-btn" data-date="${dateStr}" type="button">Editar</button>
+        <button class="timer-btn remove-therapy-btn" data-date="${dateStr}" type="button">Remover</button>
+      </div>
     `;
     listEl.appendChild(row);
   });
-  listEl.querySelectorAll('button').forEach(btn=>{
+  listEl.querySelectorAll('.remove-therapy-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const j = loadTherapyJournal();
       delete j[btn.dataset.date];
       saveTherapyJournal(j);
       renderTherapyJournal();
+    });
+  });
+  listEl.querySelectorAll('.edit-therapy-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      dateInput.value = btn.dataset.date;
+      renderTherapyJournal();
+      textInput.focus();
+      textInput.scrollIntoView({behavior:'smooth', block:'center'});
     });
   });
 }
@@ -2655,6 +2713,7 @@ function renderProgress(){
 
   renderGoals(history, cfg);
   renderMonthlyChart(cfg, history);
+  renderMoodChart();
   renderBadges(cfg, history);
 
   const corrEl = document.getElementById('mood-correlation');
@@ -2710,6 +2769,35 @@ function renderMonthlyChart(cfg, history){
     const col = document.createElement('div');
     col.className = 'bar-col';
     col.innerHTML = `<div class="bar" style="height:${Math.max(4,pct*100)}%"></div><span>${monthNames[month]}</span>`;
+    el.appendChild(col);
+  });
+}
+
+function renderMoodChart(){
+  const el = document.getElementById('mood-bars');
+  if(!el) return;
+  const mood = loadMood();
+  const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const days = [];
+  const now = new Date();
+  for(let i=13;i>=0;i--){
+    const d = new Date(now);
+    d.setDate(d.getDate()-i);
+    days.push(d);
+  }
+  el.innerHTML = '';
+  days.forEach(d=>{
+    const key = localDateKey(d);
+    const val = mood[key];
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    const label = dayNames[d.getDay()];
+    if(val){
+      const pct = Math.max(4, (val/5)*100);
+      col.innerHTML = `<div class="bar" style="height:${pct}%;" title="${MOOD_EMOJIS[val-1]} · ${formatDatePtBr(key)}"></div><span>${label}</span>`;
+    } else {
+      col.innerHTML = `<div class="bar" style="height:2%;background:var(--border);" title="sem registro · ${formatDatePtBr(key)}"></div><span>${label}</span>`;
+    }
     el.appendChild(col);
   });
 }
@@ -2812,6 +2900,7 @@ function fillConfigForm(){
   document.getElementById('cfg-calendar-ical').value = cfg.calendarIcalUrl || '';
   document.getElementById('cfg-daily-summary-enabled').checked = cfg.dailySummaryEnabled !== false;
   document.getElementById('cfg-daily-summary-time').value = cfg.dailySummaryTime || '07:00';
+  document.getElementById('cfg-weekly-summary-enabled').checked = cfg.weeklySummaryEnabled !== false;
   document.getElementById('cfg-reminder-sound-enabled').checked = cfg.reminderSoundEnabled !== false;
   document.getElementById('cfg-water-enabled').checked = cfg.waterEnabled !== false;
   document.getElementById('cfg-water-goal').value = cfg.waterGoal || 8;
@@ -3127,6 +3216,7 @@ function saveConfigFromForm(){
     calendarIcalUrl: document.getElementById('cfg-calendar-ical').value.trim(),
     dailySummaryEnabled: document.getElementById('cfg-daily-summary-enabled').checked,
     dailySummaryTime: document.getElementById('cfg-daily-summary-time').value,
+    weeklySummaryEnabled: document.getElementById('cfg-weekly-summary-enabled').checked,
     reminderSoundEnabled: document.getElementById('cfg-reminder-sound-enabled').checked,
     waterEnabled: document.getElementById('cfg-water-enabled').checked,
     waterGoal: Number(document.getElementById('cfg-water-goal').value) || 8,
