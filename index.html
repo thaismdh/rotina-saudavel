@@ -2663,6 +2663,7 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
   };
   saveConfig(cfg);
   syncConfigToServer(cfg);
+  pushStateToServer(); // envia pro servidor na hora, sem esperar o debounce (evita perder o salvamento se o app for pra segundo plano logo em seguida)
   renderSchedule();
   renderRemedios();
   renderProgress();
