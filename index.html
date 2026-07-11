@@ -365,6 +365,19 @@
       <h2>Vitaminas e remédios de hoje</h2>
       <div id="remedios-list"></div>
     </div>
+    <div class="card" id="water-card">
+      <h2>💧 Água</h2>
+      <div class="row" style="border:none;padding:6px 0;">
+        <div class="info">
+          <div class="title" id="water-count">0/8 copos hoje</div>
+          <div class="time">Lembrete a cada 2h, entre acordar e dormir.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="timer-btn" id="btn-water-minus">− copo</button>
+        <button class="timer-btn" id="btn-water-plus">+ copo</button>
+      </div>
+    </div>
   </section>
 
   <!-- TAB: CONFIG -->
@@ -513,6 +526,25 @@
     </div>
 
     <div class="card">
+      <h2>💧 Lembrete de água</h2>
+      <div class="time" style="margin-bottom:8px;">Notifica de tempos em tempos, entre acordar e dormir, pra você beber água. Funciona enquanto o app estiver aberto no navegador.</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cfg-water-enabled" checked>
+        <label>Ativar lembrete de água</label>
+      </div>
+      <div class="grid2">
+        <div>
+          <label>Meta de copos por dia</label>
+          <input type="number" id="cfg-water-goal" min="1" max="20" value="8">
+        </div>
+        <div>
+          <label>Intervalo entre lembretes (min)</label>
+          <input type="number" id="cfg-water-interval" min="15" max="360" step="15" value="120">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Calendário do Google (opcional)</h2>
       <div class="time" style="margin-bottom:8px;">No Google Calendar: Configurações ⚙️ → clique no seu calendário → "Integrar calendário" → copie o "Endereço secreto em formato iCal" e cole abaixo. A agenda de hoje aparece na aba "Hoje".</div>
       <label>Link secreto do iCal</label>
@@ -658,7 +690,8 @@ const DEFAULT_CONFIG = {
   pushServerUrl: "https://rotina-push.thaismdh.workers.dev",
   calendarIcalUrl: "",
   dailySummaryEnabled: true, dailySummaryTime: "07:00",
-  reminderSoundEnabled: true
+  reminderSoundEnabled: true,
+  waterEnabled: true, waterGoal: 8, waterIntervalMin: 120
 };
 
 // ---------- Weekly goals ----------
@@ -1434,6 +1467,7 @@ function applySyncedState(state){
   renderTravelToggle();
   renderRestToggle();
   renderCalendar();
+  renderWater();
 }
 
 let __syncDebounceTimer = null;
@@ -1461,6 +1495,30 @@ async function pushStateToServer(){
     }
   } catch(e){ /* offline ou servidor indisponível; tenta de novo na próxima mudança */ }
 }
+
+// Garante que nada fique só "agendado": se o app for pra segundo plano ou
+// fechar antes do debounce de 1.5s disparar, manda os dados na hora via
+// sendBeacon (funciona mesmo com a página fechando, ao contrário de fetch normal).
+function flushSyncNow(){
+  if(__syncDebounceTimer){
+    clearTimeout(__syncDebounceTimer);
+    __syncDebounceTimer = null;
+  }
+  const cfg = loadConfig();
+  if(!cfg.pushServerUrl) return;
+  const updatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || Date.now();
+  const payload = JSON.stringify({ state: buildSyncPayload(), updatedAt });
+  const url = cfg.pushServerUrl.replace(/\/$/, '') + '/state';
+  if(navigator.sendBeacon){
+    navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+  } else {
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(()=>{});
+  }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden') flushSyncNow();
+});
+window.addEventListener('pagehide', flushSyncNow);
 
 async function pullStateOnLoad(){
   const cfg = loadConfig();
@@ -1577,9 +1635,67 @@ function checkAlerts(){
 
   if(document.getElementById('tab-remedios').style.display !== 'none'){
     renderRemedios();
+    renderWater();
   }
 
+  checkWaterReminder(cfg, key);
   checkDailySummary(cfg, key, built);
+}
+
+// ---------- Água ----------
+function getWaterCount(key){
+  const history = loadHistory();
+  return (history[key] && history[key].water) || 0;
+}
+function setWaterCount(key, count){
+  const history = loadHistory();
+  if(!history[key]) history[key] = {};
+  history[key].water = Math.max(0, count);
+  saveHistory(history);
+}
+function renderWater(){
+  const card = document.getElementById('water-card');
+  if(!card) return;
+  const cfg = loadConfig();
+  if(cfg.waterEnabled === false){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  const key = todayKey();
+  const count = getWaterCount(key);
+  const goal = cfg.waterGoal || 8;
+  document.getElementById('water-count').textContent = `${count}/${goal} copos hoje`;
+}
+document.getElementById('btn-water-plus').addEventListener('click', ()=>{
+  const key = todayKey();
+  setWaterCount(key, getWaterCount(key) + 1);
+  renderWater();
+});
+document.getElementById('btn-water-minus').addEventListener('click', ()=>{
+  const key = todayKey();
+  setWaterCount(key, getWaterCount(key) - 1);
+  renderWater();
+});
+function checkWaterReminder(cfg, key){
+  if(cfg.waterEnabled === false) return;
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const wake = toMin(cfg.wake);
+  const sleep = toMin(cfg.sleep);
+  const intervalMin = cfg.waterIntervalMin || 120;
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  if(nowMin < wake || nowMin > sleep) return;
+  const slot = Math.floor((nowMin - wake) / intervalMin);
+  if(slot < 0) return;
+  const notifKey = 'water_' + slot;
+  const notified = JSON.parse(localStorage.getItem('rotina_notified') || '{}');
+  if(!notified[key]) notified[key] = {};
+  if(notified[key][notifKey]) return;
+  notified[key][notifKey] = true;
+  localStorage.setItem('rotina_notified', JSON.stringify(notified));
+  new Notification('💧 Hora de beber água', { body: `${getWaterCount(key)}/${cfg.waterGoal || 8} copos hoje` });
+  if(cfg.reminderSoundEnabled) playReminderSound();
 }
 
 // ---------- Resumo diário ----------
@@ -1588,6 +1704,11 @@ function buildDailySummaryText(built){
   const medsCount = built.blocks.filter(b=>b.instant).length;
   const parts = scheduled.map(b => `${b.title} ${toHHMM(b.start)}`);
   if(medsCount > 0) parts.push(`${medsCount} remédio${medsCount>1?'s':''}/vitamina${medsCount>1?'s':''}`);
+  if(__todayCalendarEvents && __todayCalendarEvents.length > 0){
+    __todayCalendarEvents.forEach(ev=>{
+      parts.push(ev.allDay ? `📌 ${ev.title} (dia todo)` : `📌 ${ev.title} ${ev.start}`);
+    });
+  }
   if(parts.length === 0) return 'Nada configurado pra hoje ainda.';
   return parts.join(' · ');
 }
@@ -1952,17 +2073,22 @@ async function initWeather(){
 }
 
 // ---------- Calendário (link secreto iCal via Worker) ----------
+// Cache dos eventos de hoje, reaproveitado no resumo diário por notificação
+// (evita disparar um novo fetch async ali, que roda em um fluxo síncrono).
+let __todayCalendarEvents = [];
 async function renderCalendar(){
   const cfg = loadConfig();
   const card = document.getElementById('calendar-card');
   const list = document.getElementById('calendar-list');
   if(!cfg.pushServerUrl || !cfg.calendarIcalUrl){
     card.style.display = 'none';
+    __todayCalendarEvents = [];
     return;
   }
   try{
     const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/calendar/today');
     const data = await res.json();
+    __todayCalendarEvents = data.events || [];
     if(!data.events || data.events.length === 0){
       card.style.display = 'none';
       return;
@@ -1983,6 +2109,7 @@ async function renderCalendar(){
     });
     card.style.display = '';
   } catch(e){
+    __todayCalendarEvents = [];
     card.style.display = 'none';
   }
 }
@@ -2440,6 +2567,9 @@ function fillConfigForm(){
   document.getElementById('cfg-daily-summary-enabled').checked = cfg.dailySummaryEnabled !== false;
   document.getElementById('cfg-daily-summary-time').value = cfg.dailySummaryTime || '07:00';
   document.getElementById('cfg-reminder-sound-enabled').checked = cfg.reminderSoundEnabled !== false;
+  document.getElementById('cfg-water-enabled').checked = cfg.waterEnabled !== false;
+  document.getElementById('cfg-water-goal').value = cfg.waterGoal || 8;
+  document.getElementById('cfg-water-interval').value = cfg.waterIntervalMin || 120;
 }
 
 // ---------- Estoque: UI ----------
@@ -2660,6 +2790,9 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
     dailySummaryEnabled: document.getElementById('cfg-daily-summary-enabled').checked,
     dailySummaryTime: document.getElementById('cfg-daily-summary-time').value,
     reminderSoundEnabled: document.getElementById('cfg-reminder-sound-enabled').checked,
+    waterEnabled: document.getElementById('cfg-water-enabled').checked,
+    waterGoal: Number(document.getElementById('cfg-water-goal').value) || 8,
+    waterIntervalMin: Number(document.getElementById('cfg-water-interval').value) || 120,
   };
   saveConfig(cfg);
   syncConfigToServer(cfg);
@@ -2670,6 +2803,7 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
   renderHeatmap();
   renderCalendar();
   renderStockFields();
+  renderWater();
   document.querySelector('nav button[data-tab="hoje"]').click();
 });
 
@@ -2757,6 +2891,7 @@ renderRemedios();
 renderProgress();
 renderHeatmap();
 renderCalendar();
+renderWater();
 updateNotifStatus();
 checkAlerts();
 openTabFromQuery();
