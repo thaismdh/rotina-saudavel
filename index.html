@@ -1818,12 +1818,14 @@ let __syncDebounceTimer = null;
 // incompleto pro servidor e apagar dados reais de outro aparelho.
 let __hasPulledOnce = false;
 let __pendingPushAfterInitialPull = false;
+// Última cópia do estado do servidor que este aparelho efetivamente viu (via
+// pull bem-sucedido ou via merge antes de um push). O flushSyncNow (usado
+// quando o app fecha ou vai pro segundo plano) usa isso pra também fazer o
+// merge por id de customMeds/customSkincare antes de mandar via sendBeacon —
+// sem essa cópia em memória, aquele caminho mandava os dados locais crus, sem
+// merge nenhum, e podia apagar um item adicionado em outro aparelho.
+let __lastKnownServerState = null;
 function markDirtyAndSync(){
-  try{
-    const log = JSON.parse(localStorage.getItem('rotina_mds_log')||'[]');
-    log.push({hasPulledOnce: __hasPulledOnce, ts: Date.now()});
-    localStorage.setItem('rotina_mds_log', JSON.stringify(log));
-  }catch(e){}
   if(!__hasPulledOnce){
     // Não mexe no timestamp ainda: se mexêssemos agora, o pullStateOnLoad (que
     // ainda não terminou) ia comparar esse "agora" com o timestamp (mais
@@ -1905,7 +1907,10 @@ async function pushStateToServer(){
     try{
       const curRes = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state');
       const curData = await curRes.json();
-      if(curData && curData.state) payload = mergeSyncListFields(payload, curData.state);
+      if(curData && curData.state){
+        payload = mergeSyncListFields(payload, curData.state);
+        __lastKnownServerState = curData.state;
+      }
     } catch(e){ /* segue só com os dados locais, sem merge */ }
     const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state', {
       method: 'POST',
@@ -1939,7 +1944,14 @@ function flushSyncNow(){
   const cfg = loadConfig();
   if(!cfg.pushServerUrl) return;
   const updatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || Date.now();
-  const payload = JSON.stringify({ state: buildSyncPayload(), updatedAt });
+  // Igual ao pushStateToServer: faz o merge por id de customMeds/customSkincare
+  // antes de mandar, usando a última cópia do servidor que vimos (não dá pra
+  // buscar de novo aqui porque a página pode estar fechando). Sem isso, esse
+  // caminho (usado quando o app vai pro segundo plano ou fecha) mandava os
+  // dados locais crus e podia apagar um item adicionado em outro aparelho.
+  let stateToSend = buildSyncPayload();
+  if(__lastKnownServerState) stateToSend = mergeSyncListFields(stateToSend, __lastKnownServerState);
+  const payload = JSON.stringify({ state: stateToSend, updatedAt });
   const url = cfg.pushServerUrl.replace(/\/$/, '') + '/state';
   if(navigator.sendBeacon){
     navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
@@ -1961,9 +1973,7 @@ function flushPendingPushIfAny(){
   }
 }
 
-let __pullCallCounter = 0;
 async function pullStateOnLoad(){
-  const callN = ++__pullCallCounter;
   const cfg = loadConfig();
   if(!cfg.pushServerUrl){ __hasPulledOnce = true; return; }
   try{
@@ -1971,25 +1981,20 @@ async function pullStateOnLoad(){
     const data = await res.json();
     __hasPulledOnce = true;
     if(!data || !data.state){
-      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'no-data', ts:Date.now()}));
       flushPendingPushIfAny();
       return;
     }
+    __lastKnownServerState = data.state;
     const localUpdatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || 0;
     if(data.updatedAt > localUpdatedAt){
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
       applySyncedState(data.state);
-      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'adopted', serverUpdatedAt:data.updatedAt, localUpdatedAt, hasStateConfig: !!data.state.config, configAfter: !!localStorage.getItem('rotina_config'), skincareAfter: localStorage.getItem('rotina_custom_skincare'), ts: Date.now()}));
     } else if(localUpdatedAt > 0){
       // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
-      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'pushed-instead', serverUpdatedAt:data.updatedAt, localUpdatedAt, configBefore: !!localStorage.getItem('rotina_config'), ts: Date.now()}));
       pushStateToServer();
-    } else {
-      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'neither', serverUpdatedAt:data.updatedAt, localUpdatedAt, ts: Date.now()}));
     }
     flushPendingPushIfAny();
   } catch(e){
-    localStorage.setItem('rotina_pull_debug_'+callN, 'EXCEPTION: ' + e.message);
     // Falha de rede (offline ou instabilidade momentânea): NÃO libera envios
     // pendentes aqui. Se liberássemos, um simples soluço de rede logo na
     // abertura do app (sem nunca ter confirmado o estado real do servidor)
@@ -3734,7 +3739,6 @@ checkAlerts();
 openTabFromQuery();
 setInterval(checkAlerts, 30000);
 setInterval(renderNextUp, 30000);
-localStorage.setItem('rotina_pre_pull_debug', JSON.stringify({updatedAt: localStorage.getItem('rotina_state_updated_at'), pending: __pendingPushAfterInitialPull, ts: Date.now()}));
 pullStateOnLoad();
 // Segunda tentativa rápida (poucos segundos depois): se a primeira, logo na
 // abertura do app, esbarrar em alguma instabilidade de rede momentânea, isso
