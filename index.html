@@ -3729,6 +3729,7 @@ checkAlerts();
 openTabFromQuery();
 setInterval(checkAlerts, 30000);
 setInterval(renderNextUp, 30000);
+localStorage.setItem('rotina_pre_pull_debug', JSON.stringify({updatedAt: localStorage.getItem('rotina_state_updated_at'), pending: __pendingPushAfterInitialPull, ts: Date.now()}));
 pullStateOnLoad();
 // Segunda tentativa rápida (poucos segundos depois): se a primeira, logo na
 // abertura do app, esbarrar em alguma instabilidade de rede momentânea, isso
