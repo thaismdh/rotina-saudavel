@@ -1811,8 +1811,19 @@ function applySyncedState(state){
 }
 
 let __syncDebounceTimer = null;
+// Só deixa qualquer envio sair depois que este aparelho já confirmou o estado
+// real do servidor pelo menos uma vez nesta sessão. Sem essa trava, logo após
+// abrir o app (ou reinstalar), qualquer efeito colateral que marque algo como
+// "sujo" antes do primeiro pull terminar poderia mandar um estado local
+// incompleto pro servidor e apagar dados reais de outro aparelho.
+let __hasPulledOnce = false;
+let __pendingPushAfterInitialPull = false;
 function markDirtyAndSync(){
   localStorage.setItem('rotina_state_updated_at', String(Date.now()));
+  if(!__hasPulledOnce){
+    __pendingPushAfterInitialPull = true;
+    return;
+  }
   clearTimeout(__syncDebounceTimer);
   __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
 }
@@ -1907,6 +1918,13 @@ function flushSyncNow(){
     clearTimeout(__syncDebounceTimer);
     __syncDebounceTimer = null;
   }
+  // Mesma trava do markDirtyAndSync: se o app foi pro segundo plano antes do
+  // primeiro pull terminar, não manda nada — o dado local ainda pode estar
+  // incompleto (ex.: logo após reinstalar).
+  if(!__hasPulledOnce){
+    __pendingPushAfterInitialPull = true;
+    return;
+  }
   const cfg = loadConfig();
   if(!cfg.pushServerUrl) return;
   const updatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || Date.now();
@@ -1923,13 +1941,25 @@ document.addEventListener('visibilitychange', ()=>{
 });
 window.addEventListener('pagehide', flushSyncNow);
 
+function flushPendingPushIfAny(){
+  if(__pendingPushAfterInitialPull){
+    __pendingPushAfterInitialPull = false;
+    clearTimeout(__syncDebounceTimer);
+    __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
+  }
+}
+
 async function pullStateOnLoad(){
   const cfg = loadConfig();
-  if(!cfg.pushServerUrl) return;
+  if(!cfg.pushServerUrl){ __hasPulledOnce = true; return; }
   try{
     const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state');
     const data = await res.json();
-    if(!data || !data.state) return;
+    __hasPulledOnce = true;
+    if(!data || !data.state){
+      flushPendingPushIfAny();
+      return;
+    }
     const localUpdatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || 0;
     if(data.updatedAt > localUpdatedAt){
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
@@ -1938,7 +1968,13 @@ async function pullStateOnLoad(){
       // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
       pushStateToServer();
     }
-  } catch(e){ /* offline; a próxima abertura do app tenta de novo */ }
+    flushPendingPushIfAny();
+  } catch(e){
+    // offline; a próxima abertura do app tenta de novo. Ainda assim libera envios
+    // futuros — senão um aparelho genuinamente offline nunca mais sincronizaria.
+    __hasPulledOnce = true;
+    flushPendingPushIfAny();
+  }
 }
 
 document.getElementById('btn-enable-push').addEventListener('click', async ()=>{
