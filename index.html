@@ -447,7 +447,7 @@
       <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Meditação e práticas</div>
       <div class="checkbox-row">
         <input type="checkbox" id="cfg-morning-practice-enabled" checked>
-        <label>Oração / daimoku ao acordar (antes de levantar)</label>
+        <label>Oração da manhã (antes de levantar)</label>
       </div>
       <label>Duração da prática matinal (min)</label>
       <input type="number" id="cfg-morning-practice-min" value="10" min="0" step="5">
@@ -847,7 +847,7 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
 
   // Morning practice (oração/daimoku), done right as she wakes, before getting out of bed.
   if(cfg.morningPracticeEnabled && cfg.morningPracticeMin > 0){
-    blocks.push({key:'morning_practice', icon:'pray', title:'Oração / daimoku', start: wake, minutes: cfg.morningPracticeMin});
+    blocks.push({key:'morning_practice', icon:'pray', title:'Oração da manhã', start: wake, minutes: cfg.morningPracticeMin});
   }
   const morningStart = wake + (cfg.morningPracticeEnabled ? cfg.morningPracticeMin : 0);
 
