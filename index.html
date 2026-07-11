@@ -81,15 +81,15 @@
     background:var(--primary);
     color:#fff;
   }
-  nav button .nav-icon{
+  header .chip-icon{
     display:inline-block;
     vertical-align:middle;
-    margin-right:3px;
   }
-  nav button .nav-icon svg{
-    width:15px;
-    height:15px;
+  header .chip-icon svg{
+    width:16px;
+    height:16px;
     vertical-align:middle;
+    display:block;
   }
   main{
     max-width:640px;
@@ -287,13 +287,13 @@
   <div class="header-chips">
     <div class="weather-chip" id="weather-chip" style="display:none;"></div>
     <button id="theme-toggle" class="chip-btn" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">🌙</button>
+    <button id="btn-open-settings" class="chip-btn" type="button" title="Configurar" aria-label="Configurar"><span class="chip-icon" id="header-gear-icon"></span></button>
   </div>
 </header>
 
 <nav>
   <button data-tab="hoje" class="active">Hoje</button>
   <button data-tab="remedios">Remédios</button>
-  <button data-tab="config"><span class="nav-icon" id="nav-icon-config"></span>Configurar</button>
   <button data-tab="progresso">Progresso</button>
   <button data-tab="compras">Compras</button>
   <button data-tab="terapia">Terapia</button>
@@ -2665,17 +2665,26 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
 });
 
 // ---------- Tabs ----------
+const ALL_TABS = ['hoje','remedios','config','progresso','compras','terapia'];
 document.querySelectorAll('nav button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['hoje','remedios','config','progresso','compras','terapia'].forEach(t=>{
+    ALL_TABS.forEach(t=>{
       document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
     });
     if(btn.dataset.tab === 'remedios') renderRemedios();
     if(btn.dataset.tab === 'progresso') renderHeatmap();
     if(btn.dataset.tab === 'compras') renderShoppingList();
     if(btn.dataset.tab === 'terapia') renderTherapyJournal();
+  });
+});
+
+// Ícone de engrenagem no topo abre a aba de Configurar (sem botão fixo no menu)
+document.getElementById('btn-open-settings').addEventListener('click', ()=>{
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  ALL_TABS.forEach(t=>{
+    document.getElementById('tab-'+t).style.display = (t==='config') ? '' : 'none';
   });
 });
 
@@ -2720,8 +2729,8 @@ const travelCardIconEl = document.getElementById('travel-card-icon');
 if(travelCardIconEl) travelCardIconEl.innerHTML = catIcon('plane');
 const restdayCardIconEl = document.getElementById('restday-card-icon');
 if(restdayCardIconEl) restdayCardIconEl.innerHTML = catIcon('sun');
-const navIconConfigEl = document.getElementById('nav-icon-config');
-if(navIconConfigEl) navIconConfigEl.innerHTML = catIcon('gear');
+const headerGearIconEl = document.getElementById('header-gear-icon');
+if(headerGearIconEl) headerGearIconEl.innerHTML = catIcon('gear');
 initTheme();
 fillConfigForm();
 renderStockFields();
