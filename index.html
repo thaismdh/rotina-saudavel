@@ -1813,15 +1813,40 @@ function markDirtyAndSync(){
   __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
 }
 
+// Campos de lista (id-based) que podem ser editados em qualquer aparelho.
+// Antes de sobrescrever o estado do servidor, fazemos um merge por id nesses
+// campos específicos: assim, se o celular ainda não puxou um item que acabou
+// de ser adicionado no desktop (ou vice-versa), o push do celular não apaga
+// esse item — ele entra na união em vez de sumir.
+const SYNC_LIST_FIELDS = ['customMeds', 'customSkincare', 'customPhrases', 'shoppingCustom'];
+function mergeSyncListFields(localState, serverState){
+  const merged = { ...localState };
+  SYNC_LIST_FIELDS.forEach(key=>{
+    const localList = Array.isArray(localState[key]) ? localState[key] : [];
+    const serverList = Array.isArray(serverState[key]) ? serverState[key] : [];
+    const byId = new Map();
+    serverList.forEach(item=>{ if(item && item.id) byId.set(item.id, item); });
+    localList.forEach(item=>{ if(item && item.id) byId.set(item.id, item); }); // local vence se o mesmo id existir nos dois
+    merged[key] = Array.from(byId.values());
+  });
+  return merged;
+}
+
 async function pushStateToServer(){
   const cfg = loadConfig();
   if(!cfg.pushServerUrl) return;
   const updatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || Date.now();
   try{
+    let payload = buildSyncPayload();
+    try{
+      const curRes = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state');
+      const curData = await curRes.json();
+      if(curData && curData.state) payload = mergeSyncListFields(payload, curData.state);
+    } catch(e){ /* segue só com os dados locais, sem merge */ }
     const res = await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: buildSyncPayload(), updatedAt }),
+      body: JSON.stringify({ state: payload, updatedAt }),
     });
     const data = await res.json();
     if(data && data.applied === false && data.state){
