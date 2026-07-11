@@ -1956,7 +1956,9 @@ function flushPendingPushIfAny(){
   }
 }
 
+let __pullCallCounter = 0;
 async function pullStateOnLoad(){
+  const callN = ++__pullCallCounter;
   const cfg = loadConfig();
   if(!cfg.pushServerUrl){ __hasPulledOnce = true; return; }
   try{
@@ -1964,25 +1966,25 @@ async function pullStateOnLoad(){
     const data = await res.json();
     __hasPulledOnce = true;
     if(!data || !data.state){
+      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'no-data', ts:Date.now()}));
       flushPendingPushIfAny();
       return;
     }
     const localUpdatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || 0;
-    localStorage.setItem('rotina_pull_debug', JSON.stringify({serverUpdatedAt:data.updatedAt, localUpdatedAt, hasStateConfig: !!data.state.config, ts: Date.now()}));
     if(data.updatedAt > localUpdatedAt){
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
       applySyncedState(data.state);
-      localStorage.setItem('rotina_pull_debug2', 'adopted, configAfter=' + !!localStorage.getItem('rotina_config'));
+      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'adopted', serverUpdatedAt:data.updatedAt, localUpdatedAt, hasStateConfig: !!data.state.config, configAfter: !!localStorage.getItem('rotina_config'), skincareAfter: localStorage.getItem('rotina_custom_skincare'), ts: Date.now()}));
     } else if(localUpdatedAt > 0){
       // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
+      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'pushed-instead', serverUpdatedAt:data.updatedAt, localUpdatedAt, configBefore: !!localStorage.getItem('rotina_config'), ts: Date.now()}));
       pushStateToServer();
-      localStorage.setItem('rotina_pull_debug2', 'pushed-instead');
     } else {
-      localStorage.setItem('rotina_pull_debug2', 'neither-branch');
+      localStorage.setItem('rotina_pull_debug_'+callN, JSON.stringify({branch:'neither', serverUpdatedAt:data.updatedAt, localUpdatedAt, ts: Date.now()}));
     }
     flushPendingPushIfAny();
   } catch(e){
-    localStorage.setItem('rotina_pull_debug', 'EXCEPTION: ' + e.message);
+    localStorage.setItem('rotina_pull_debug_'+callN, 'EXCEPTION: ' + e.message);
     // Falha de rede (offline ou instabilidade momentânea): NÃO libera envios
     // pendentes aqui. Se liberássemos, um simples soluço de rede logo na
     // abertura do app (sem nunca ter confirmado o estado real do servidor)
