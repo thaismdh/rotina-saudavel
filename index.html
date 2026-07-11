@@ -553,7 +553,7 @@ function getWeekDates(base){
   for(let i=0;i<7;i++){
     const dd = new Date(monday);
     dd.setDate(monday.getDate()+i);
-    out.push(dd.toISOString().slice(0,10));
+    out.push(localDateKey(dd));
   }
   return out;
 }
@@ -675,9 +675,15 @@ function snoozeItem(itemKey, minutes){
     localStorage.setItem('rotina_notified', JSON.stringify(notified));
   }
 }
+function localDateKey(d){
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function todayKey(){
-  const d = new Date();
-  return d.toISOString().slice(0,10);
+  return localDateKey(new Date());
 }
 function toMin(hhmm){
   const [h,m] = hhmm.split(':').map(Number);
@@ -1397,7 +1403,7 @@ function renderProgress(){
   for(let i=0;i<60;i++){
     const d = new Date();
     d.setDate(d.getDate()-i);
-    dates.push(d.toISOString().slice(0,10));
+    dates.push(localDateKey(d));
   }
   let current = 0;
   for(const d of dates){
@@ -1463,7 +1469,7 @@ function renderHeatmap(){
   for(let i = DAYS - 1; i >= 0; i--){
     const d = new Date();
     d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().slice(0,10));
+    dates.push(localDateKey(d));
   }
   const firstDow = new Date(dates[0]+'T12:00:00').getDay();
   const padded = Array(firstDow).fill(null).concat(dates);
