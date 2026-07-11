@@ -711,7 +711,8 @@ function catIcon(pose){
 // ---------- Estoque de remédios/vitaminas ----------
 const MED_STOCK_LABELS = {
   syntroid: 'Syntroid',
-  natifa_omega: 'Natifa Pro + Ômega 3',
+  natifa_pro: 'Natifa Pro',
+  omega3: 'Ômega 3',
   subtramina: 'Subtramina',
   calde_max: 'Calde Max',
   fisiogen: 'Fisiogen',
@@ -724,7 +725,17 @@ function medStockKeyFor(blockKey){
 }
 function loadStock(){
   const raw = localStorage.getItem('rotina_stock');
-  return raw ? JSON.parse(raw) : {};
+  const s = raw ? JSON.parse(raw) : {};
+  // Migração: "Natifa Pro" e "Ômega 3" eram um único item de estoque; agora são
+  // dois remédios separados. Reaproveita a quantidade antiga como ponto de partida
+  // pros dois (ela pode ajustar cada um depois).
+  if(typeof s.natifa_omega === 'number'){
+    if(typeof s.natifa_pro !== 'number') s.natifa_pro = s.natifa_omega;
+    if(typeof s.omega3 !== 'number') s.omega3 = s.natifa_omega;
+    delete s.natifa_omega;
+    localStorage.setItem('rotina_stock', JSON.stringify(s));
+  }
+  return s;
 }
 function saveStock(s){
   localStorage.setItem('rotina_stock', JSON.stringify(s));
@@ -948,7 +959,8 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
   }
 
   blocks.push({key:'syntroid', icon:'pill', title:'Syntroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
-  blocks.push({key:'natifa_omega', icon:'fish', title:'Natifa Pro + Ômega 3', start: breakfast, minutes: 0, instant:true});
+  blocks.push({key:'natifa_pro', icon:'pill', title:'Natifa Pro', start: breakfast, minutes: 0, instant:true});
+  blocks.push({key:'omega3', icon:'fish', title:'Ômega 3', start: breakfast, minutes: 0, instant:true});
   blocks.push({key:'subtramina', icon:'pill', title:'Subtramina', start: lunch - cfg.subBefore, minutes: 0, instant:true});
   blocks.push({key:'calde_max', icon:'pill', title:'Calde Max', start: lunch + dur, minutes: 0, instant:true});
   blocks.push({key:'fisiogen_lunch', icon:'pill', title:'Fisiogen', start: lunch + dur + 30, minutes: 0, instant:true});
@@ -1789,7 +1801,7 @@ function computeDayCompletion(cfg, history, dateStr){
 }
 
 // ---------- Selos de conquista ----------
-const MED_BLOCK_KEYS = ['syntroid','natifa_omega','subtramina','calde_max','fisiogen_lunch','fisiogen_dinner','vitamina_d'];
+const MED_BLOCK_KEYS = ['syntroid','natifa_pro','omega3','subtramina','calde_max','fisiogen_lunch','fisiogen_dinner','vitamina_d'];
 
 const BADGES = [
   {id:'streak7', icon:'🔥', label:'7 dias seguidos', check: s => s.bestStreak >= 7},
