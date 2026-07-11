@@ -69,19 +69,37 @@
   }
   nav button{
     flex:1;
-    padding:10px 6px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    position:relative;
+    padding:8px 4px 7px;
     border:none;
     border-radius:10px;
     background:var(--card);
     color:var(--muted);
     font-weight:600;
-    font-size:.85rem;
+    font-size:.78rem;
     cursor:pointer;
   }
   nav button.active{
     background:var(--primary);
     color:#fff;
   }
+  nav .nav-icon{width:18px;height:18px;display:inline-flex;color:inherit;}
+  nav .nav-icon svg{width:18px;height:18px;}
+  nav .nav-badge{
+    display:none;
+    position:absolute;
+    top:4px;
+    right:calc(50% - 20px);
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--danger);
+  }
+  nav .nav-badge.show{display:block;}
   main{
     max-width:640px;
     margin:20px auto;
@@ -284,6 +302,7 @@
   .mood-btn.selected{opacity:1;background:var(--primary);transform:scale(1.08);}
   .next-up-empty{color:var(--muted);font-size:.9rem;}
   .next-up-row{display:flex;align-items:center;gap:12px;}
+  .next-up-row .info{flex:1;}
   .next-up-row .info .title{font-weight:700;font-size:1rem;}
   .next-up-row .info .time{font-size:.82rem;color:var(--muted);}
   .badges-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
@@ -321,11 +340,11 @@
 </header>
 
 <nav>
-  <button data-tab="hoje" class="active">Hoje</button>
-  <button data-tab="remedios">Remédios</button>
-  <button data-tab="terapia">Terapia</button>
-  <button data-tab="compras">Compras</button>
-  <button data-tab="progresso">Progresso</button>
+  <button data-tab="hoje" class="active"><span class="nav-icon" data-icon="leaf"></span><span>Hoje</span></button>
+  <button data-tab="remedios"><span class="nav-icon" data-icon="pill"></span><span>Remédios</span><span class="nav-badge" id="nav-badge-remedios"></span></button>
+  <button data-tab="terapia"><span class="nav-icon" data-icon="chat"></span><span>Terapia</span></button>
+  <button data-tab="compras"><span class="nav-icon" data-icon="cart"></span><span>Compras</span><span class="nav-badge" id="nav-badge-compras"></span></button>
+  <button data-tab="progresso"><span class="nav-icon" data-icon="chart"></span><span>Progresso</span></button>
 </nav>
 
 <main>
@@ -872,12 +891,23 @@ const NATURE_ICONS = {
   bike: '<circle cx="14.5" cy="24" r="4"/><circle cx="25.5" cy="24" r="4"/><path d="M14.5 24l4-9h6l3 9"/><path d="M18.5 15h4"/>',
   walk: '<path d="M12 29c3-4 9-4 9-9s-6-5-6-9 6-5 6-9"/>',
   plane: '<path d="M6 21c4-4 10-4 14 0 4-4 10-4 14 0"/>',
+  leaf: '<path d="M20 31V19"/><path d="M20 19c0-6 3-10 9-11 1 6-3 10-9 11Z"/><path d="M20 23c0-4-2-7-6-8 0 4 2 7 6 8Z"/>',
+  cart: '<path d="M8 11h4l3 15h13l3-11H14"/><circle cx="16" cy="30" r="2"/><circle cx="25" cy="30" r="2"/>',
+  chart: '<path d="M10 27 16 20l5 4 9-11"/><path d="M24 15h6v6"/>',
 };
 function natureIcon(pose){
   const path = NATURE_ICONS[pose] || '';
   return `<svg viewBox="0 0 40 40" width="28" height="28" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
     <circle cx="20" cy="20" r="19" fill="var(--primary-light)"/>
     <g fill="none" stroke="var(--ink)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      ${path}
+    </g>
+  </svg>`;
+}
+function navIcon(pose){
+  const path = NATURE_ICONS[pose] || '';
+  return `<svg viewBox="0 0 40 40" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+    <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
       ${path}
     </g>
   </svg>`;
@@ -1266,8 +1296,27 @@ function renderNextUp(){
         <div class="title">${target.title}</div>
         <div class="time">${statusText} · ${timeLabel}</div>
       </div>
+      <div class="check" data-key="${target.key}"></div>
     </div>
   `;
+  const chk = el.querySelector('.check');
+  if(chk){
+    chk.addEventListener('click', ()=>{
+      const k = chk.dataset.key;
+      const h = loadHistory();
+      const dk = todayKey();
+      if(!h[dk]) h[dk] = {};
+      const wasDone = !!h[dk][k];
+      h[dk][k] = !wasDone;
+      saveHistory(h);
+      adjustStock(k, wasDone ? 1 : -1);
+      syncDoneToServer(dk, k, h[dk][k]);
+      renderRemedios();
+      renderProgress();
+      renderNextUp();
+      updateNavBadges();
+    });
+  }
 }
 
 // ---------- Rendering: Hoje ----------
@@ -1480,6 +1529,7 @@ function renderRemedios(){
       renderRemedios();
       renderProgress();
       renderNextUp();
+      updateNavBadges();
     });
   });
 
@@ -1611,6 +1661,7 @@ function applySyncedState(state){
   renderRestToggle();
   renderCalendar();
   renderWater();
+  updateNavBadges();
 }
 
 let __syncDebounceTimer = null;
@@ -1783,6 +1834,30 @@ function checkAlerts(){
 
   checkWaterReminder(cfg, key);
   checkDailySummary(cfg, key, built);
+  updateNavBadges();
+}
+
+// ---------- Indicadores (bolinha) na barra de navegação ----------
+function updateNavBadges(){
+  const cfg = loadConfig();
+  const key = todayKey();
+  const built = scheduleForDate(cfg, key);
+  const history = loadHistory();
+  const todayData = history[key] || {};
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const hasOverdue = built.blocks.some(b=>{
+    if(!b.instant || todayData[b.key]) return false;
+    const start = ((b.start % 1440) + 1440) % 1440;
+    return nowMin >= start;
+  });
+  const remBadge = document.getElementById('nav-badge-remedios');
+  if(remBadge) remBadge.classList.toggle('show', hasOverdue);
+
+  const shoppingState = loadShoppingState();
+  const hasNeeded = Object.values(shoppingState).some(entry => entry && entry.needed);
+  const comprasBadge = document.getElementById('nav-badge-compras');
+  if(comprasBadge) comprasBadge.classList.toggle('show', hasNeeded);
 }
 
 // ---------- Água ----------
@@ -2064,6 +2139,7 @@ function renderShoppingList(){
       s[k].needed = !s[k].needed;
       saveShoppingState(s);
       renderShoppingList();
+      updateNavBadges();
     });
   });
 
@@ -3052,6 +3128,34 @@ document.getElementById('btn-open-settings').addEventListener('click', ()=>{
   });
 });
 
+// ---------- Deslizar (swipe) entre as abas, além de tocar nos botões ----------
+(function setupSwipeNav(){
+  const SWIPE_TABS = ['hoje','remedios','terapia','compras','progresso'];
+  const mainEl = document.querySelector('main');
+  if(!mainEl) return;
+  let startX = 0, startY = 0, tracking = false;
+  mainEl.addEventListener('touchstart', (e)=>{
+    if(e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, {passive:true});
+  mainEl.addEventListener('touchend', (e)=>{
+    if(!tracking) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if(Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const currentBtn = document.querySelector('nav button.active');
+    if(!currentBtn) return;
+    const idx = SWIPE_TABS.indexOf(currentBtn.dataset.tab);
+    if(idx === -1) return; // na aba Configurar, sem swipe
+    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
+    if(nextIdx < 0 || nextIdx >= SWIPE_TABS.length) return;
+    document.querySelector(`nav button[data-tab="${SWIPE_TABS[nextIdx]}"]`).click();
+  }, {passive:true});
+})();
+
 // ---------- Menu lateral da aba Configurar ----------
 document.querySelectorAll('.config-nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -3104,6 +3208,9 @@ const travelCardIconEl = document.getElementById('travel-card-icon');
 if(travelCardIconEl) travelCardIconEl.innerHTML = natureIcon('plane');
 const restdayCardIconEl = document.getElementById('restday-card-icon');
 if(restdayCardIconEl) restdayCardIconEl.innerHTML = natureIcon('sun');
+document.querySelectorAll('nav .nav-icon[data-icon]').forEach(el=>{
+  el.innerHTML = navIcon(el.dataset.icon);
+});
 initTheme();
 fillConfigForm();
 renderMedsList();
