@@ -1019,6 +1019,7 @@ function addCustomMed(name, time, days){
   saveCustomMeds(list);
 }
 function removeCustomMed(id){
+  recordTombstone('customMeds', id);
   const list = loadCustomMeds().filter(m=>m.id !== id);
   saveCustomMeds(list);
 }
@@ -1038,6 +1039,7 @@ function addCustomSkincare(name, time, days){
   saveCustomSkincare(list);
 }
 function removeCustomSkincare(id){
+  recordTombstone('customSkincare', id);
   const list = loadCustomSkincare().filter(s=>s.id !== id);
   saveCustomSkincare(list);
 }
@@ -1760,11 +1762,13 @@ function buildSyncPayload(){
     progressStart: loadProgressStart(),
     customMeds: loadCustomMeds(),
     customSkincare: loadCustomSkincare(),
+    syncTombstones: loadSyncTombstones(),
   };
 }
 
 function applySyncedState(state){
   if(!state) return;
+  if(state.syncTombstones) saveSyncTombstones(mergeTombstones(loadSyncTombstones(), state.syncTombstones));
   if(state.config) localStorage.setItem('rotina_config', JSON.stringify(state.config));
   if(state.history) localStorage.setItem('rotina_history', JSON.stringify(state.history));
   if(state.stock) localStorage.setItem('rotina_stock', JSON.stringify(state.stock));
@@ -1813,20 +1817,58 @@ function markDirtyAndSync(){
   __syncDebounceTimer = setTimeout(pushStateToServer, 1500);
 }
 
-// Campos de lista (id-based) que podem ser editados em qualquer aparelho.
-// Antes de sobrescrever o estado do servidor, fazemos um merge por id nesses
-// campos específicos: assim, se o celular ainda não puxou um item que acabou
-// de ser adicionado no desktop (ou vice-versa), o push do celular não apaga
-// esse item — ele entra na união em vez de sumir.
-const SYNC_LIST_FIELDS = ['customMeds', 'customSkincare', 'customPhrases', 'shoppingCustom'];
+// Campos de lista com item.id estável, que podem ser editados em qualquer
+// aparelho. Antes de sobrescrever o estado do servidor, fazemos um merge por
+// id nesses campos: assim, se o celular ainda não puxou um item que acabou de
+// ser adicionado no desktop (ou vice-versa), o push do celular não apaga esse
+// item — ele entra na união em vez de sumir. (customPhrases e shoppingCustom
+// ficam de fora porque são listas de texto simples, sem id, então não dá pra
+// fazer merge seguro por item — continuam no esquema antigo de "o último push
+// vale".)
+const SYNC_LIST_FIELDS = ['customMeds', 'customSkincare'];
+
+// Tumbas de remoção: quando um item é removido, guardamos {campo, id, quando}
+// aqui. Isso é o que impede que o merge por união "ressuscite" um item que
+// alguém acabou de apagar — sem isso, remover um remédio ou passo de skincare
+// e depois sincronizar traria ele de volta.
+function loadSyncTombstones(){
+  const raw = localStorage.getItem('rotina_sync_tombstones');
+  return raw ? JSON.parse(raw) : {};
+}
+function saveSyncTombstones(t){
+  localStorage.setItem('rotina_sync_tombstones', JSON.stringify(t));
+}
+function recordTombstone(field, id){
+  const t = loadSyncTombstones();
+  if(!t[field]) t[field] = {};
+  t[field][id] = Date.now();
+  saveSyncTombstones(t);
+}
+function mergeTombstones(a, b){
+  const merged = {};
+  SYNC_LIST_FIELDS.forEach(field=>{
+    merged[field] = { ...(a[field] || {}) };
+    const bField = (b && b[field]) || {};
+    Object.keys(bField).forEach(id=>{
+      if(!merged[field][id] || bField[id] > merged[field][id]) merged[field][id] = bField[id];
+    });
+  });
+  return merged;
+}
+
 function mergeSyncListFields(localState, serverState){
-  const merged = { ...localState };
+  const combinedTombstones = mergeTombstones(loadSyncTombstones(), serverState.syncTombstones);
+  saveSyncTombstones(combinedTombstones); // este aparelho passa a lembrar da remoção também
+
+  const merged = { ...localState, syncTombstones: combinedTombstones };
   SYNC_LIST_FIELDS.forEach(key=>{
     const localList = Array.isArray(localState[key]) ? localState[key] : [];
     const serverList = Array.isArray(serverState[key]) ? serverState[key] : [];
+    const deletedIds = combinedTombstones[key] || {};
     const byId = new Map();
     serverList.forEach(item=>{ if(item && item.id) byId.set(item.id, item); });
     localList.forEach(item=>{ if(item && item.id) byId.set(item.id, item); }); // local vence se o mesmo id existir nos dois
+    Object.keys(deletedIds).forEach(id=> byId.delete(id));
     merged[key] = Array.from(byId.values());
   });
   return merged;
