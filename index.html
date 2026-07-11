@@ -228,6 +228,17 @@
     font-size:.72rem;padding:2px 8px;border-radius:20px;margin-left:6px;
     font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
   }
+  .goal-row{margin-bottom:14px;}
+  .goal-row:last-child{margin-bottom:0;}
+  .goal-row .goal-top{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:6px;}
+  .goal-row .goal-top .goal-name{font-weight:600;}
+  .goal-row .goal-top .goal-count{color:var(--muted);}
+  .goal-track{background:var(--primary-light);border-radius:20px;height:8px;overflow:hidden;}
+  .goal-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--primary));border-radius:20px;transition:width .3s;}
+  .row .icon svg{display:block;}
+  .checkbox-row{display:flex;align-items:center;gap:8px;margin:10px 0;}
+  .checkbox-row input[type=checkbox]{width:18px;height:18px;}
+  .checkbox-row label{margin:0;}
 </style>
 </head>
 <body>
@@ -259,10 +270,10 @@
     </div>
     <div class="card">
       <div class="row" style="border:none;padding:0;">
-        <div class="icon">✈️</div>
+        <div class="icon" id="travel-card-icon">✈️</div>
         <div class="info">
           <div class="title">Modo viagem hoje</div>
-          <div class="time">Pausa academia e terapia sem quebrar sua sequência</div>
+          <div class="time">Pausa academia, spinning, caminhada e terapia sem quebrar sua sequência</div>
         </div>
         <button class="timer-btn" id="btn-travel-toggle" type="button">Ativar</button>
       </div>
@@ -339,13 +350,13 @@
           <input type="time" id="cfg-therapy-end" value="09:00">
         </div>
       </div>
-      <label>Saída para a academia na terça (mais cedo)</label>
+      <label>Horário da academia na terça (mais cedo)</label>
       <input type="time" id="cfg-gym-leave-tue" value="06:30">
     </div>
 
     <div class="card">
       <h2>Suas metas diárias</h2>
-      <label>Estudo (minutos)</label>
+      <label>Estudo (minutos, meta: pelo menos 3x/semana)</label>
       <input type="number" id="cfg-study-min" value="60" min="0" step="5">
       <label>Prefiro estudar</label>
       <select id="cfg-study-pref">
@@ -353,11 +364,9 @@
         <option value="evening" selected>À noite (depois do trabalho)</option>
       </select>
 
-      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia</div>
-      <label>Horário de saída de casa</label>
+      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia (meta: 4x/semana)</div>
+      <label>Horário da academia</label>
       <input type="time" id="cfg-gym-leave" value="07:00">
-      <label>Tempo de deslocamento (só ida, em minutos)</label>
-      <input type="number" id="cfg-gym-travel" value="10" min="0" step="1">
       <div class="grid2">
         <div>
           <label>Musculação (min)</label>
@@ -369,14 +378,39 @@
         </div>
       </div>
 
-      <label>Meditação (minutos totais/dia)</label>
-      <input type="number" id="cfg-meditation-min" value="15" min="0" step="5">
-      <label>Como dividir a meditação</label>
-      <select id="cfg-meditation-split">
-        <option value="split" selected>Metade ao acordar, metade antes de dormir</option>
-        <option value="morning">Tudo ao acordar</option>
-        <option value="evening">Tudo antes de dormir</option>
-      </select>
+      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Fim de semana</div>
+      <div class="grid2">
+        <div>
+          <label>Spinning (sábado)</label>
+          <input type="time" id="cfg-spinning-start" value="09:30">
+        </div>
+        <div>
+          <label>Duração (min)</label>
+          <input type="number" id="cfg-spinning-min" value="45" min="0" step="5">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label>Caminhada (domingo)</label>
+          <input type="time" id="cfg-walk-start" value="08:00">
+        </div>
+        <div>
+          <label>Duração (min)</label>
+          <input type="number" id="cfg-walk-min" value="45" min="0" step="5">
+        </div>
+      </div>
+
+      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Meditação e práticas</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cfg-morning-practice-enabled" checked>
+        <label>Oração / daimoku ao acordar (antes de levantar)</label>
+      </div>
+      <label>Duração da prática matinal (min)</label>
+      <input type="number" id="cfg-morning-practice-min" value="10" min="0" step="5">
+      <label>Meditação (depois do almoço, minutos)</label>
+      <input type="number" id="cfg-meditation-min" value="10" min="0" step="5">
+      <label>Leitura antes de dormir (minutos, meta: 3x/semana)</label>
+      <input type="number" id="cfg-reading-min" value="20" min="0" step="5">
 
       <button class="save-btn" id="btn-save-config">Salvar e gerar rotina</button>
     </div>
@@ -448,6 +482,10 @@
   <!-- TAB: PROGRESSO -->
   <section id="tab-progresso" style="display:none">
     <div class="card">
+      <h2>Metas da semana</h2>
+      <div id="goals-list"></div>
+    </div>
+    <div class="card">
       <h2>Sua constância</h2>
       <div class="streak">
         <div><span id="streak-current">0</span><small>dias seguidos</small></div>
@@ -486,14 +524,48 @@ const DEFAULT_CONFIG = {
   wake: "06:30", sleep: "22:30",
   workStart: "09:00", workEnd: "18:00",
   studyMin: 60, studyPref: "evening",
-  gymLeave: "07:00", gymLeaveTue: "06:30", gymTravel: 10, gymStrength: 40, gymCardio: 20,
-  meditationMin: 15, meditationSplit: "split",
+  gymLeave: "07:00", gymLeaveTue: "06:30", gymStrength: 40, gymCardio: 20,
+  spinningStart: "09:30", spinningMin: 45,
+  walkStart: "08:00", walkMin: 45,
+  morningPracticeEnabled: true, morningPracticeMin: 10,
+  meditationMin: 10,
+  readingMin: 20,
   mealBreakfast: "09:00", mealLunch: "12:30", mealDinner: "19:30", mealDuration: 30,
   subBefore: 15, syntroidBefore: 30,
   therapyStart: "08:20", therapyEnd: "09:00",
   pushServerUrl: "https://rotina-push.thaismdh.workers.dev",
   calendarIcalUrl: ""
 };
+
+// ---------- Weekly goals ----------
+const WEEKLY_GOALS = {
+  gym: { label: 'Academia', target: 4, keys: ['gym_strength','gym_cardio'], icon: 'gym' },
+  study: { label: 'Estudo', target: 3, keys: ['study'], icon: 'study' },
+  reading: { label: 'Leitura', target: 3, keys: ['reading'], icon: 'book' },
+};
+function getWeekDates(base){
+  const d = new Date(base);
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + mondayOffset);
+  const out = [];
+  for(let i=0;i<7;i++){
+    const dd = new Date(monday);
+    dd.setDate(monday.getDate()+i);
+    out.push(dd.toISOString().slice(0,10));
+  }
+  return out;
+}
+function weeklyGoalCount(history, keys, weekDates){
+  let count = 0;
+  weekDates.forEach(dateStr=>{
+    const d = history[dateStr];
+    if(!d) return;
+    if(keys.some(k=>d[k])) count++;
+  });
+  return count;
+}
 
 function loadConfig(){
   const raw = localStorage.getItem('rotina_config');
@@ -508,6 +580,49 @@ function loadHistory(){
 }
 function saveHistory(h){
   localStorage.setItem('rotina_history', JSON.stringify(h));
+}
+
+// ---------- Ícones do gatinho por categoria ----------
+let __catIconSeq = 0;
+function catFaceSVG(){
+  return `
+    <path d="M9 14 L13 6 L17 14 Z" fill="#2dd4bf"/>
+    <path d="M23 14 L27 6 L31 14 Z" fill="#2dd4bf"/>
+    <circle cx="20" cy="21" r="11" fill="#fbf3e6"/>
+    <path d="M13 22 q7 6 14 0" stroke="#3a3a3a" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M20 17 l-1.8 1.8 1.8 1.3 1.8-1.3 Z" fill="#f3a6a1"/>
+    <line x1="6" y1="20" x2="12" y2="19" stroke="#3a3a3a" stroke-width="1"/>
+    <line x1="6" y1="23" x2="12" y2="23" stroke="#3a3a3a" stroke-width="1"/>
+    <line x1="28" y1="19" x2="34" y2="20" stroke="#3a3a3a" stroke-width="1"/>
+    <line x1="28" y1="23" x2="34" y2="23" stroke="#3a3a3a" stroke-width="1"/>
+  `;
+}
+const CAT_POSES = {
+  study: '<rect x="12" y="30" width="16" height="6" rx="1.5" fill="#1f2937"/><line x1="20" y1="30" x2="20" y2="36" stroke="#fbf3e6" stroke-width="1"/>',
+  book: '<rect x="12" y="30" width="16" height="6" rx="1.5" fill="#1f2937"/><line x1="20" y1="30" x2="20" y2="36" stroke="#fbf3e6" stroke-width="1"/><path d="M29 25 a3 3 0 1 0 2 5.2 a4 4 0 1 1 -2 -5.2Z" fill="#fde68a"/>',
+  gym: '<rect x="13" y="31.5" width="14" height="3" rx="1.5" fill="#1f2937"/><circle cx="12" cy="33" r="3.2" fill="#1f2937"/><circle cx="28" cy="33" r="3.2" fill="#1f2937"/>',
+  chat: '<rect x="13" y="29" width="14" height="7" rx="3" fill="#1f2937"/><path d="M17 36 l2 3 l1.4 -3 Z" fill="#1f2937"/>',
+  pill: '<rect x="13" y="30.5" width="14" height="5.5" rx="2.75" fill="#f3a6a1"/><rect x="13" y="30.5" width="7" height="5.5" rx="2.75" fill="#ffffff"/>',
+  fish: '<path d="M12 33 q6 -5 14 0 q-6 5 -14 0 Z" fill="#2dd4bf"/><path d="M26 33 l4 -3 l0 6 Z" fill="#2dd4bf"/><circle cx="15" cy="32" r="0.8" fill="#0e1512"/>',
+  sun: '<circle cx="20" cy="33" r="3.2" fill="#fbbf24"/><g stroke="#fbbf24" stroke-width="1.2"><line x1="20" y1="28.5" x2="20" y2="27"/><line x1="20" y1="37.5" x2="20" y2="39"/><line x1="15.5" y1="33" x2="14" y2="33"/><line x1="24.5" y1="33" x2="26" y2="33"/></g>',
+  pray: '<path d="M20 28 L15.5 35 L20 33 L24.5 35 Z" fill="#1f2937"/>',
+  meditate: '<circle cx="20" cy="34" r="2.2" fill="#f3a6a1"/><circle cx="15.5" cy="34" r="2.2" fill="#2dd4bf"/><circle cx="24.5" cy="34" r="2.2" fill="#2dd4bf"/>',
+  bike: '<circle cx="14.5" cy="33.5" r="3.2" fill="none" stroke="#1f2937" stroke-width="1.3"/><circle cx="25.5" cy="33.5" r="3.2" fill="none" stroke="#1f2937" stroke-width="1.3"/><line x1="14.5" y1="33.5" x2="20" y2="28.5" stroke="#1f2937" stroke-width="1.2"/><line x1="25.5" y1="33.5" x2="20" y2="28.5" stroke="#1f2937" stroke-width="1.2"/>',
+  walk: '<ellipse cx="15.5" cy="31.5" rx="2" ry="2.8" fill="#1f2937"/><ellipse cx="24.5" cy="35.5" rx="2" ry="2.8" fill="#1f2937"/>',
+  plane: '<path d="M11 34 L29 28 L20 34 L23 38 Z" fill="#1f2937"/>',
+};
+function catIcon(pose){
+  __catIconSeq++;
+  const gid = 'catGrad'+__catIconSeq;
+  const prop = CAT_POSES[pose] || '';
+  return `<svg viewBox="0 0 40 40" width="28" height="28" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15803d"/><stop offset="1" stop-color="#6ee7a8"/>
+    </linearGradient></defs>
+    <rect x="1.5" y="1.5" width="37" height="37" rx="11" fill="url(#${gid})"/>
+    ${catFaceSVG()}
+    ${prop}
+  </svg>`;
 }
 
 // ---------- Estoque de remédios/vitaminas ----------
@@ -577,30 +692,46 @@ function toHHMM(mins){
 // ---------- Schedule generation ----------
 function buildSchedule(cfg, dow, travelMode){
   const isTuesday = dow === 2;
+  const isSaturday = dow === 6;
+  const isSunday = dow === 0;
+  const isWeekday = dow >= 1 && dow <= 5;
   const wake = toMin(cfg.wake);
   const sleep = toMin(cfg.sleep) < wake ? toMin(cfg.sleep)+1440 : toMin(cfg.sleep);
   const workStart = toMin(cfg.workStart);
   const workEnd = toMin(cfg.workEnd);
 
   const gymLeave = toMin(isTuesday && cfg.gymLeaveTue ? cfg.gymLeaveTue : cfg.gymLeave);
-  const travel = cfg.gymTravel;
-  const gymRoundTrip = travel*2 + cfg.gymStrength + cfg.gymCardio;
-  const gymEnd = gymLeave + gymRoundTrip;
+  const gymDuration = cfg.gymStrength + cfg.gymCardio;
+  const gymEnd = gymLeave + gymDuration;
+
+  const spinningStart = toMin(cfg.spinningStart);
+  const spinningEnd = spinningStart + cfg.spinningMin;
+  const walkStart = toMin(cfg.walkStart);
+  const walkEnd = walkStart + cfg.walkMin;
 
   const blocks = []; // {key, icon, title, start, minutes}
 
-  // Fixed appointments in the morning (gym always, therapy on Tuesdays), in order.
-  // Skipped entirely in travel mode: no gym, no therapy that day.
-  const fixedMorning = travelMode ? [] : [{start: gymLeave, end: gymEnd}];
-  if(isTuesday && !travelMode){
-    fixedMorning.push({start: toMin(cfg.therapyStart), end: toMin(cfg.therapyEnd)});
+  // Fixed appointments in the morning: academia (mon-fri), spinning (sáb), caminhada (dom),
+  // therapy (terça). All skipped entirely in travel mode, without breaking the streak.
+  const fixedMorning = [];
+  if(!travelMode){
+    if(isWeekday && gymDuration > 0) fixedMorning.push({start: gymLeave, end: gymEnd});
+    if(isSaturday && cfg.spinningMin > 0) fixedMorning.push({start: spinningStart, end: spinningEnd});
+    if(isSunday && cfg.walkMin > 0) fixedMorning.push({start: walkStart, end: walkEnd});
+    if(isTuesday) fixedMorning.push({start: toMin(cfg.therapyStart), end: toMin(cfg.therapyEnd)});
   }
   fixedMorning.sort((a,b)=>a.start-b.start);
 
-  // Morning windows available for meditation/study: the gaps between waking up,
+  // Morning practice (oração/daimoku), done right as she wakes, before getting out of bed.
+  if(cfg.morningPracticeEnabled && cfg.morningPracticeMin > 0){
+    blocks.push({key:'morning_practice', icon:'pray', title:'Oração / daimoku', start: wake, minutes: cfg.morningPracticeMin});
+  }
+  const morningStart = wake + (cfg.morningPracticeEnabled ? cfg.morningPracticeMin : 0);
+
+  // Morning windows available for study: the gaps between the morning practice,
   // the fixed appointments, and the start of work.
   const windows = [];
-  let cursorPos = wake;
+  let cursorPos = morningStart;
   fixedMorning.forEach(f=>{
     if(f.start > cursorPos) windows.push({start: cursorPos, end: f.start, cursor: cursorPos});
     cursorPos = Math.max(cursorPos, f.end);
@@ -634,57 +765,44 @@ function buildSchedule(cfg, dow, travelMode){
     w.cursor += minutes;
   }
 
-  // Meditation split
-  let medMorning = 0, medEvening = 0;
-  if(cfg.meditationSplit === 'split'){
-    medMorning = Math.round(cfg.meditationMin/2);
-    medEvening = cfg.meditationMin - medMorning;
-  } else if(cfg.meditationSplit === 'morning'){
-    medMorning = cfg.meditationMin;
-  } else {
-    medEvening = cfg.meditationMin;
-  }
-
-  // morning meditation goes first thing after waking, in the first available window
-  if(medMorning > 0){
-    place(medMorning, 'med_morning', '🧘', 'Meditação matinal', 'morning');
-  }
-
   // study fills remaining morning/evening room according to preference
-  place(cfg.studyMin, 'study', '📚', 'Estudo', cfg.studyPref);
+  place(cfg.studyMin, 'study', 'study', 'Estudo', cfg.studyPref);
 
-  // fixed gym block: travel out, strength, cardio, travel back (skipped in travel mode)
-  if(!travelMode && gymRoundTrip > 0){
+  // fixed academia block: musculação + cardio, sem deslocamento (mon-fri, skipped in travel mode)
+  if(!travelMode && isWeekday && gymDuration > 0){
     let cursor = gymLeave;
-    if(travel > 0){
-      blocks.push({key:'gym_travel_out', icon:'🚗', title:'Deslocamento (ida)', start: cursor, minutes: travel});
-      cursor += travel;
-    }
     if(cfg.gymStrength > 0){
-      blocks.push({key:'gym_strength', icon:'🏋️', title:'Musculação', start: cursor, minutes: cfg.gymStrength});
+      blocks.push({key:'gym_strength', icon:'gym', title:'Musculação', start: cursor, minutes: cfg.gymStrength});
       cursor += cfg.gymStrength;
     }
     if(cfg.gymCardio > 0){
-      blocks.push({key:'gym_cardio', icon:'🚴', title:'Cardio', start: cursor, minutes: cfg.gymCardio});
+      blocks.push({key:'gym_cardio', icon:'gym', title:'Cardio', start: cursor, minutes: cfg.gymCardio});
       cursor += cfg.gymCardio;
     }
-    if(travel > 0){
-      blocks.push({key:'gym_travel_back', icon:'🚗', title:'Deslocamento (volta)', start: cursor, minutes: travel});
-      cursor += travel;
-    }
+  }
+
+  // spinning, sábado (skipped in travel mode)
+  if(!travelMode && isSaturday && cfg.spinningMin > 0){
+    blocks.push({key:'spinning', icon:'bike', title:'Spinning', start: spinningStart, minutes: cfg.spinningMin});
+  }
+
+  // caminhada, domingo (skipped in travel mode)
+  if(!travelMode && isSunday && cfg.walkMin > 0){
+    blocks.push({key:'caminhada', icon:'walk', title:'Caminhada', start: walkStart, minutes: cfg.walkMin});
   }
 
   // therapy, Tuesdays only (skipped in travel mode)
   if(isTuesday && !travelMode){
     const tStart = toMin(cfg.therapyStart);
     const tEnd = toMin(cfg.therapyEnd);
-    blocks.push({key:'therapy', icon:'💬', title:'Terapia', start: tStart, minutes: tEnd - tStart});
+    blocks.push({key:'therapy', icon:'chat', title:'Terapia', start: tStart, minutes: tEnd - tStart});
   }
 
-  if(medEvening > 0){
-    const start = Math.max(eveningWindow.cursor, eveningWindow.end - medEvening);
-    blocks.push({key:'med_evening', icon:'🌙', title:'Meditação noturna', start, minutes: medEvening});
-    eveningWindow.cursor = start + medEvening;
+  // Leitura antes de dormir, todo dia (ela marca quando lê; meta é 3x/semana)
+  if(cfg.readingMin > 0){
+    const start = Math.max(eveningWindow.cursor, eveningWindow.end - cfg.readingMin);
+    blocks.push({key:'reading', icon:'book', title:'Leitura antes de dormir', start, minutes: cfg.readingMin});
+    eveningWindow.cursor = start + cfg.readingMin;
   }
 
   // Vitaminas / medicamentos, calculados a partir dos horários das refeições
@@ -693,19 +811,24 @@ function buildSchedule(cfg, dow, travelMode){
   const dinner = toMin(cfg.mealDinner);
   const dur = cfg.mealDuration;
 
-  blocks.push({key:'syntroid', icon:'💊', title:'Syntroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
-  blocks.push({key:'natifa_omega', icon:'🐟', title:'Natifa Pro + Ômega 3', start: breakfast, minutes: 0, instant:true});
-  blocks.push({key:'subtramina', icon:'💊', title:'Subtramina', start: lunch - cfg.subBefore, minutes: 0, instant:true});
-  blocks.push({key:'calde_max', icon:'💊', title:'Calde Max', start: lunch + dur, minutes: 0, instant:true});
-  blocks.push({key:'fisiogen_lunch', icon:'💊', title:'Fisiogen', start: lunch + dur + 30, minutes: 0, instant:true});
-  blocks.push({key:'fisiogen_dinner', icon:'💊', title:'Fisiogen', start: dinner + dur + 30, minutes: 0, instant:true});
+  // Meditação, depois do almoço
+  if(cfg.meditationMin > 0){
+    blocks.push({key:'meditation', icon:'meditate', title:'Meditação', start: lunch + dur, minutes: cfg.meditationMin});
+  }
+
+  blocks.push({key:'syntroid', icon:'pill', title:'Syntroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
+  blocks.push({key:'natifa_omega', icon:'fish', title:'Natifa Pro + Ômega 3', start: breakfast, minutes: 0, instant:true});
+  blocks.push({key:'subtramina', icon:'pill', title:'Subtramina', start: lunch - cfg.subBefore, minutes: 0, instant:true});
+  blocks.push({key:'calde_max', icon:'pill', title:'Calde Max', start: lunch + dur, minutes: 0, instant:true});
+  blocks.push({key:'fisiogen_lunch', icon:'pill', title:'Fisiogen', start: lunch + dur + 30, minutes: 0, instant:true});
+  blocks.push({key:'fisiogen_dinner', icon:'pill', title:'Fisiogen', start: dinner + dur + 30, minutes: 0, instant:true});
   if(dow === 5){
-    blocks.push({key:'vitamina_d', icon:'☀️', title:'Vitamina D', start: lunch, minutes: 0, instant:true});
+    blocks.push({key:'vitamina_d', icon:'sun', title:'Vitamina D', start: lunch, minutes: 0, instant:true});
   }
 
   blocks.sort((a,b)=>a.start-b.start);
 
-  const gymConflict = !travelMode && gymEnd > workStart;
+  const gymConflict = !travelMode && isWeekday && gymEnd > workStart;
 
   return { blocks, workStart, workEnd, wake, sleep, gymEnd, gymConflict, travelMode: !!travelMode };
 }
@@ -772,7 +895,7 @@ function renderSchedule(){
     const timeLabel = b.instant ? toHHMM(b.start) : `${toHHMM(b.start)} – ${toHHMM(b.start + b.minutes)}`;
     const timerBtn = b.instant ? '' : `<button class="timer-btn" data-key="${b.key}" data-title="${b.title}" data-minutes="${b.minutes}">▶ Timer</button>`;
     row.innerHTML = `
-      <div class="icon">${b.icon}</div>
+      <div class="icon">${catIcon(b.icon)}</div>
       <div class="info">
         <div class="title">${b.title} ${tag}</div>
         <div class="time">${timeLabel}</div>
@@ -911,7 +1034,7 @@ function renderRemedios(){
       : '';
     const snoozeBtn = (!done) ? `<button class="timer-btn snooze-btn" data-key="${b.key}">⏰ 15min</button>` : '';
     row.innerHTML = `
-      <div class="icon">${b.icon}</div>
+      <div class="icon">${catIcon(b.icon)}</div>
       <div class="info">
         <div class="title">${b.title} ${stockHtml}</div>
         <div class="time">${toHHMM(b.start)}</div>
@@ -1304,6 +1427,30 @@ function renderProgress(){
     col.innerHTML = `<div class="bar" style="height:${Math.max(4,pct*100)}%"></div><span>${dayNames[dow]}</span>`;
     bars.appendChild(col);
   });
+
+  renderGoals(history);
+}
+
+function renderGoals(history){
+  const el = document.getElementById('goals-list');
+  if(!el) return;
+  history = history || loadHistory();
+  const weekDates = getWeekDates(new Date());
+  el.innerHTML = '';
+  Object.values(WEEKLY_GOALS).forEach(goal=>{
+    const count = weeklyGoalCount(history, goal.keys, weekDates);
+    const pct = Math.min(100, Math.round((count/goal.target)*100));
+    const row = document.createElement('div');
+    row.className = 'goal-row';
+    row.innerHTML = `
+      <div class="goal-top">
+        <span class="goal-name">${goal.label}</span>
+        <span class="goal-count">${count}/${goal.target} dias esta semana</span>
+      </div>
+      <div class="goal-track"><div class="goal-fill" style="width:${pct}%"></div></div>
+    `;
+    el.appendChild(row);
+  });
 }
 
 function renderHeatmap(){
@@ -1357,11 +1504,16 @@ function fillConfigForm(){
   document.getElementById('cfg-gym-leave-tue').value = cfg.gymLeaveTue;
   document.getElementById('cfg-therapy-start').value = cfg.therapyStart;
   document.getElementById('cfg-therapy-end').value = cfg.therapyEnd;
-  document.getElementById('cfg-gym-travel').value = cfg.gymTravel;
   document.getElementById('cfg-gym-strength').value = cfg.gymStrength;
   document.getElementById('cfg-gym-cardio').value = cfg.gymCardio;
+  document.getElementById('cfg-spinning-start').value = cfg.spinningStart;
+  document.getElementById('cfg-spinning-min').value = cfg.spinningMin;
+  document.getElementById('cfg-walk-start').value = cfg.walkStart;
+  document.getElementById('cfg-walk-min').value = cfg.walkMin;
+  document.getElementById('cfg-morning-practice-enabled').checked = !!cfg.morningPracticeEnabled;
+  document.getElementById('cfg-morning-practice-min').value = cfg.morningPracticeMin;
   document.getElementById('cfg-meditation-min').value = cfg.meditationMin;
-  document.getElementById('cfg-meditation-split').value = cfg.meditationSplit;
+  document.getElementById('cfg-reading-min').value = cfg.readingMin;
   document.getElementById('cfg-meal-breakfast').value = cfg.mealBreakfast;
   document.getElementById('cfg-meal-lunch').value = cfg.mealLunch;
   document.getElementById('cfg-meal-dinner').value = cfg.mealDinner;
@@ -1460,11 +1612,16 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
     gymLeaveTue: document.getElementById('cfg-gym-leave-tue').value,
     therapyStart: document.getElementById('cfg-therapy-start').value,
     therapyEnd: document.getElementById('cfg-therapy-end').value,
-    gymTravel: Number(document.getElementById('cfg-gym-travel').value),
     gymStrength: Number(document.getElementById('cfg-gym-strength').value),
     gymCardio: Number(document.getElementById('cfg-gym-cardio').value),
+    spinningStart: document.getElementById('cfg-spinning-start').value,
+    spinningMin: Number(document.getElementById('cfg-spinning-min').value),
+    walkStart: document.getElementById('cfg-walk-start').value,
+    walkMin: Number(document.getElementById('cfg-walk-min').value),
+    morningPracticeEnabled: document.getElementById('cfg-morning-practice-enabled').checked,
+    morningPracticeMin: Number(document.getElementById('cfg-morning-practice-min').value),
     meditationMin: Number(document.getElementById('cfg-meditation-min').value),
-    meditationSplit: document.getElementById('cfg-meditation-split').value,
+    readingMin: Number(document.getElementById('cfg-reading-min').value),
     mealBreakfast: document.getElementById('cfg-meal-breakfast').value,
     mealLunch: document.getElementById('cfg-meal-lunch').value,
     mealDinner: document.getElementById('cfg-meal-dinner').value,
@@ -1533,6 +1690,8 @@ function setTodayLabel(){
 }
 
 // first-time default: work 09:00-18:00 already set as default above.
+const travelCardIconEl = document.getElementById('travel-card-icon');
+if(travelCardIconEl) travelCardIconEl.innerHTML = catIcon('plane');
 initTheme();
 fillConfigForm();
 renderStockFields();
