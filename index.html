@@ -239,6 +239,15 @@
   .checkbox-row{display:flex;align-items:center;gap:8px;margin:10px 0;}
   .checkbox-row input[type=checkbox]{width:18px;height:18px;}
   .checkbox-row label{margin:0;}
+  #print-report{display:none;}
+  .report-day{page-break-inside:avoid;border-bottom:1px solid #ddd;padding:8px 0;}
+  .report-day .report-head{display:flex;justify-content:space-between;font-weight:700;}
+  .report-day .report-items{font-size:.85rem;color:#333;margin-top:4px;}
+  @media print{
+    body *{visibility:hidden;}
+    #print-report, #print-report *{visibility:visible;}
+    #print-report{display:block;position:absolute;top:0;left:0;width:100%;padding:10px;color:#000;background:#fff;}
+  }
 </style>
 </head>
 <body>
@@ -276,6 +285,16 @@
           <div class="time">Pausa academia, spinning, caminhada e terapia sem quebrar sua sequência</div>
         </div>
         <button class="timer-btn" id="btn-travel-toggle" type="button">Ativar</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row" style="border:none;padding:0;">
+        <div class="icon" id="restday-card-icon">🏖️</div>
+        <div class="info">
+          <div class="title">Dia livre / feriado hoje</div>
+          <div class="time">Pausa academia, spinning, caminhada, terapia e estudo — só remédios, meditação e leitura</div>
+        </div>
+        <button class="timer-btn" id="btn-restday-toggle" type="button">Ativar</button>
       </div>
     </div>
     <div class="card">
@@ -449,6 +468,17 @@
     </div>
 
     <div class="card">
+      <h2>Resumo diário</h2>
+      <div class="time" style="margin-bottom:8px;">Uma notificação de manhã com o resumo do seu dia. Funciona enquanto o app estiver aberto no navegador (igual às notificações de remédio).</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cfg-daily-summary-enabled" checked>
+        <label>Ativar resumo diário</label>
+      </div>
+      <label>Horário do resumo</label>
+      <input type="time" id="cfg-daily-summary-time" value="07:00">
+    </div>
+
+    <div class="card">
       <h2>Calendário do Google (opcional)</h2>
       <div class="time" style="margin-bottom:8px;">No Google Calendar: Configurações ⚙️ → clique no seu calendário → "Integrar calendário" → copie o "Endereço secreto em formato iCal" e cole abaixo. A agenda de hoje aparece na aba "Hoje".</div>
       <label>Link secreto do iCal</label>
@@ -477,6 +507,12 @@
       <button class="save-btn" id="btn-import-backup" type="button" style="margin-top:8px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Importar backup</button>
       <input type="file" id="input-import-backup" accept="application/json" style="display:none;">
     </div>
+
+    <div class="card">
+      <h2>Relatório de adesão</h2>
+      <div class="time" style="margin-bottom:8px;">Gera um relatório dos últimos 30 dias pra levar ao médico ou terapeuta. Abre a caixa de impressão — escolha "Salvar como PDF".</div>
+      <button class="save-btn" id="btn-generate-report" type="button">Gerar relatório (últimos 30 dias)</button>
+    </div>
   </section>
 
   <!-- TAB: PROGRESSO -->
@@ -492,6 +528,7 @@
         <div><span id="streak-best">0</span><small>melhor sequência</small></div>
         <div><span id="streak-week">0%</span><small>últimos 7 dias</small></div>
       </div>
+      <div id="streak-message" style="margin-top:12px;font-size:.85rem;color:var(--muted);display:none;"></div>
     </div>
     <div class="card">
       <h2>Últimos 7 dias</h2>
@@ -501,9 +538,15 @@
       <h2>Últimos 3 meses</h2>
       <div class="heatmap" id="heatmap"></div>
     </div>
+    <div class="card">
+      <h2>Comparação mensal</h2>
+      <div class="bars" id="monthly-bars"></div>
+    </div>
   </section>
 
 </main>
+
+<div id="print-report"></div>
 
 <!-- TIMER MODAL -->
 <div class="modal-bg" id="timer-modal">
@@ -534,7 +577,8 @@ const DEFAULT_CONFIG = {
   subBefore: 15, syntroidBefore: 30,
   therapyStart: "08:20", therapyEnd: "09:00",
   pushServerUrl: "https://rotina-push.thaismdh.workers.dev",
-  calendarIcalUrl: ""
+  calendarIcalUrl: "",
+  dailySummaryEnabled: true, dailySummaryTime: "07:00"
 };
 
 // ---------- Weekly goals ----------
@@ -696,7 +740,7 @@ function toHHMM(mins){
 }
 
 // ---------- Schedule generation ----------
-function buildSchedule(cfg, dow, travelMode){
+function buildSchedule(cfg, dow, travelMode, skipStudy){
   const isTuesday = dow === 2;
   const isSaturday = dow === 6;
   const isSunday = dow === 0;
@@ -771,8 +815,10 @@ function buildSchedule(cfg, dow, travelMode){
     w.cursor += minutes;
   }
 
-  // study fills remaining morning/evening room according to preference
-  place(cfg.studyMin, 'study', 'study', 'Estudo', cfg.studyPref);
+  // study fills remaining morning/evening room according to preference (paused on dia livre/feriado)
+  if(!skipStudy){
+    place(cfg.studyMin, 'study', 'study', 'Estudo', cfg.studyPref);
+  }
 
   // fixed academia block: musculação + cardio, sem deslocamento (mon-fri, skipped in travel mode)
   if(!travelMode && isWeekday && gymDuration > 0){
@@ -854,9 +900,26 @@ function setTravelDay(dateStr, on){
   localStorage.setItem('rotina_travel_days', JSON.stringify(days));
 }
 
+// ---------- Dia livre / feriado ----------
+function loadFreeDays(){
+  const raw = localStorage.getItem('rotina_free_days');
+  return raw ? JSON.parse(raw) : [];
+}
+function isFreeDay(dateStr){
+  return loadFreeDays().includes(dateStr);
+}
+function setFreeDay(dateStr, on){
+  let days = loadFreeDays();
+  if(on){ if(!days.includes(dateStr)) days.push(dateStr); }
+  else { days = days.filter(d => d !== dateStr); }
+  localStorage.setItem('rotina_free_days', JSON.stringify(days));
+}
+
 function scheduleForDate(cfg, dateStr){
   const dow = new Date(dateStr+'T12:00:00').getDay();
-  return buildSchedule(cfg, dow, isTravelDay(dateStr));
+  const travel = isTravelDay(dateStr);
+  const rest = isFreeDay(dateStr);
+  return buildSchedule(cfg, dow, travel || rest, rest);
 }
 
 // ---------- Rendering: Hoje ----------
@@ -1203,6 +1266,31 @@ function checkAlerts(){
   if(document.getElementById('tab-remedios').style.display !== 'none'){
     renderRemedios();
   }
+
+  checkDailySummary(cfg, key, built);
+}
+
+// ---------- Resumo diário ----------
+function buildDailySummaryText(built){
+  const scheduled = built.blocks.filter(b=>!b.instant);
+  const medsCount = built.blocks.filter(b=>b.instant).length;
+  const parts = scheduled.map(b => `${b.title} ${toHHMM(b.start)}`);
+  if(medsCount > 0) parts.push(`${medsCount} remédio${medsCount>1?'s':''}/vitamina${medsCount>1?'s':''}`);
+  if(parts.length === 0) return 'Nada configurado pra hoje ainda.';
+  return parts.join(' · ');
+}
+function checkDailySummary(cfg, key, built){
+  if(cfg.dailySummaryEnabled === false) return;
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const summaryTime = toMin(cfg.dailySummaryTime || '07:00');
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  if(nowMin < summaryTime) return;
+  const sent = JSON.parse(localStorage.getItem('rotina_daily_summary_sent') || '{}');
+  if(sent[key]) return;
+  sent[key] = true;
+  localStorage.setItem('rotina_daily_summary_sent', JSON.stringify(sent));
+  new Notification('🌱 Resumo do seu dia', { body: buildDailySummaryText(built) });
 }
 
 // ---------- Frase motivacional do dia ----------
@@ -1418,6 +1506,28 @@ document.getElementById('btn-travel-toggle').addEventListener('click', ()=>{
   renderProgress();
 });
 
+function renderRestToggle(){
+  const btn = document.getElementById('btn-restday-toggle');
+  if(!btn) return;
+  const active = isFreeDay(todayKey());
+  btn.textContent = active ? 'Desativar' : 'Ativar';
+  if(active){
+    btn.style.background = 'var(--primary)';
+    btn.style.color = '#fff';
+  } else {
+    btn.style.background = 'transparent';
+    btn.style.color = 'var(--primary)';
+  }
+}
+document.getElementById('btn-restday-toggle').addEventListener('click', ()=>{
+  const key = todayKey();
+  setFreeDay(key, !isFreeDay(key));
+  renderRestToggle();
+  renderSchedule();
+  renderRemedios();
+  renderProgress();
+});
+
 // ---------- Progress ----------
 function computeDayCompletion(cfg, history, dateStr){
   const dayBlocks = scheduleForDate(cfg, dateStr).blocks;
@@ -1460,6 +1570,16 @@ function renderProgress(){
   document.getElementById('streak-best').textContent = best;
   document.getElementById('streak-week').textContent = Math.round(avg7*100)+'%';
 
+  const msgEl = document.getElementById('streak-message');
+  if(msgEl){
+    if(current === 0 && best >= 2){
+      msgEl.textContent = `Tudo bem recomeçar. Sua melhor sequência foi de ${best} dias — você já provou que consegue, vamos de novo sem culpa.`;
+      msgEl.style.display = '';
+    } else {
+      msgEl.style.display = 'none';
+    }
+  }
+
   const bars = document.getElementById('bars');
   bars.innerHTML = '';
   const last7Rev = [...last7].reverse();
@@ -1474,6 +1594,35 @@ function renderProgress(){
   });
 
   renderGoals(history);
+  renderMonthlyChart(cfg, history);
+}
+
+function renderMonthlyChart(cfg, history){
+  const el = document.getElementById('monthly-bars');
+  if(!el) return;
+  const monthNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const months = [];
+  const now = new Date();
+  for(let i = 5; i >= 0; i--){
+    const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(m);
+  }
+  el.innerHTML = '';
+  months.forEach(m=>{
+    const year = m.getFullYear(), month = m.getMonth();
+    const isCurrentMonth = (year === now.getFullYear() && month === now.getMonth());
+    const lastDay = isCurrentMonth ? now.getDate() : new Date(year, month+1, 0).getDate();
+    let total = 0;
+    for(let day = 1; day <= lastDay; day++){
+      const d = new Date(year, month, day);
+      total += computeDayCompletion(cfg, history, localDateKey(d));
+    }
+    const pct = lastDay > 0 ? total / lastDay : 0;
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    col.innerHTML = `<div class="bar" style="height:${Math.max(4,pct*100)}%"></div><span>${monthNames[month]}</span>`;
+    el.appendChild(col);
+  });
 }
 
 function renderGoals(history){
@@ -1567,19 +1716,48 @@ function fillConfigForm(){
   document.getElementById('cfg-syntroid-before').value = cfg.syntroidBefore;
   document.getElementById('cfg-push-url').value = cfg.pushServerUrl || '';
   document.getElementById('cfg-calendar-ical').value = cfg.calendarIcalUrl || '';
+  document.getElementById('cfg-daily-summary-enabled').checked = cfg.dailySummaryEnabled !== false;
+  document.getElementById('cfg-daily-summary-time').value = cfg.dailySummaryTime || '07:00';
 }
 
 // ---------- Estoque: UI ----------
+// ---------- Previsão de estoque ----------
+function weeklyDoseRate(cfg, stockKey){
+  let count = 0;
+  for(let dow=0; dow<=6; dow++){
+    const built = buildSchedule(cfg, dow, false);
+    built.blocks.forEach(b=>{
+      if(b.instant && medStockKeyFor(b.key) === stockKey) count++;
+    });
+  }
+  return count / 7;
+}
+function stockForecastText(cfg, stockKey, qty){
+  if(typeof qty !== 'number') return '';
+  const dailyRate = weeklyDoseRate(cfg, stockKey);
+  if(dailyRate <= 0) return qty <= 0 ? 'acabou' : '';
+  if(qty <= 0) return 'acabou';
+  const daysLeft = Math.floor(qty / dailyRate);
+  const d = new Date();
+  d.setDate(d.getDate() + daysLeft);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return `dura ~${daysLeft} dia${daysLeft===1?'':'s'} (até ${dd}/${mm})`;
+}
+
 function renderStockFields(){
   const el = document.getElementById('stock-fields');
   if(!el) return;
   const stock = loadStock();
+  const cfg = loadConfig();
   el.innerHTML = '';
   Object.keys(MED_STOCK_LABELS).forEach(key=>{
     const wrap = document.createElement('div');
+    const forecast = stockForecastText(cfg, key, stock[key]);
     wrap.innerHTML = `
       <label>${MED_STOCK_LABELS[key]} (doses restantes)</label>
       <input type="number" min="0" step="1" id="stock-${key}" value="${typeof stock[key] === 'number' ? stock[key] : ''}" placeholder="não controlado">
+      ${forecast ? `<div class="time" style="margin:2px 0 0;">${forecast}</div>` : ''}
     `;
     el.appendChild(wrap);
   });
@@ -1591,6 +1769,7 @@ function renderStockFields(){
       else { s[key] = Math.max(0, Number(val)); }
       saveStock(s);
       renderRemedios();
+      renderStockFields();
     });
   });
 }
@@ -1604,6 +1783,7 @@ function exportBackup(){
     history: loadHistory(),
     theme: localStorage.getItem('rotina_theme') || 'dark',
     travelDays: loadTravelDays(),
+    freeDays: loadFreeDays(),
     stock: loadStock(),
     customPhrases: loadCustomPhrases(),
   };
@@ -1627,6 +1807,7 @@ function importBackup(file){
       if(data.history) saveHistory(data.history);
       if(data.theme) localStorage.setItem('rotina_theme', data.theme);
       if(data.travelDays) localStorage.setItem('rotina_travel_days', JSON.stringify(data.travelDays));
+      if(data.freeDays) localStorage.setItem('rotina_free_days', JSON.stringify(data.freeDays));
       if(data.stock) saveStock(data.stock);
       if(data.customPhrases) saveCustomPhrases(data.customPhrases);
       alert('Backup importado! A página vai recarregar.');
@@ -1637,6 +1818,44 @@ function importBackup(file){
   };
   reader.readAsText(file);
 }
+// ---------- Relatório de adesão (imprimir / PDF) ----------
+function generateAdherenceReport(days){
+  const cfg = loadConfig();
+  const history = loadHistory();
+  const today = new Date();
+  const dayNamesFull = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+  let html = '';
+  html += `<h1 style="margin:0 0 4px;">Floresce — Relatório de adesão</h1>`;
+  html += `<div style="color:#555;margin-bottom:16px;">Últimos ${days} dias · gerado em ${today.toLocaleDateString('pt-BR')}</div>`;
+  for(let i = days - 1; i >= 0; i--){
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = localDateKey(d);
+    const built = scheduleForDate(cfg, dateStr);
+    const dayData = history[dateStr] || {};
+    const total = built.blocks.length;
+    let done = 0;
+    const itemsHtml = built.blocks.map(b=>{
+      const isDone = !!dayData[b.key];
+      if(isDone) done++;
+      const mark = isDone ? '✓' : '✗';
+      return `${mark} ${b.title} (${toHHMM(b.start)})`;
+    }).join(' &nbsp;·&nbsp; ');
+    const pct = total > 0 ? Math.round((done/total)*100) : 0;
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    html += `<div class="report-day">
+      <div class="report-head"><span>${dd}/${mm} · ${dayNamesFull[d.getDay()]}</span><span>${pct}%</span></div>
+      <div class="report-items">${itemsHtml || 'Nada configurado'}</div>
+    </div>`;
+  }
+  document.getElementById('print-report').innerHTML = html;
+}
+document.getElementById('btn-generate-report').addEventListener('click', ()=>{
+  generateAdherenceReport(30);
+  setTimeout(()=> window.print(), 100);
+});
+
 document.getElementById('btn-export-backup').addEventListener('click', exportBackup);
 document.getElementById('btn-import-backup').addEventListener('click', ()=>{
   document.getElementById('input-import-backup').click();
@@ -1675,6 +1894,8 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
     syntroidBefore: Number(document.getElementById('cfg-syntroid-before').value),
     pushServerUrl: document.getElementById('cfg-push-url').value.trim(),
     calendarIcalUrl: document.getElementById('cfg-calendar-ical').value.trim(),
+    dailySummaryEnabled: document.getElementById('cfg-daily-summary-enabled').checked,
+    dailySummaryTime: document.getElementById('cfg-daily-summary-time').value,
   };
   saveConfig(cfg);
   syncConfigToServer(cfg);
@@ -1683,6 +1904,7 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
   renderProgress();
   renderHeatmap();
   renderCalendar();
+  renderStockFields();
   document.querySelector('nav button[data-tab="hoje"]').click();
 });
 
@@ -1737,6 +1959,8 @@ function setTodayLabel(){
 // first-time default: work 09:00-18:00 already set as default above.
 const travelCardIconEl = document.getElementById('travel-card-icon');
 if(travelCardIconEl) travelCardIconEl.innerHTML = catIcon('plane');
+const restdayCardIconEl = document.getElementById('restday-card-icon');
+if(restdayCardIconEl) restdayCardIconEl.innerHTML = catIcon('sun');
 initTheme();
 fillConfigForm();
 renderStockFields();
@@ -1745,6 +1969,7 @@ setTodayLabel();
 renderDailyPhrase();
 initWeather();
 renderTravelToggle();
+renderRestToggle();
 renderSchedule();
 renderRemedios();
 renderProgress();
