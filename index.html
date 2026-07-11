@@ -569,7 +569,7 @@ function weeklyGoalCount(history, keys, weekDates){
 
 function loadConfig(){
   const raw = localStorage.getItem('rotina_config');
-  return raw ? JSON.parse(raw) : {...DEFAULT_CONFIG};
+  return raw ? {...DEFAULT_CONFIG, ...JSON.parse(raw)} : {...DEFAULT_CONFIG};
 }
 function saveConfig(cfg){
   localStorage.setItem('rotina_config', JSON.stringify(cfg));
