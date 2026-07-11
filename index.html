@@ -1964,7 +1964,6 @@ async function pullStateOnLoad(){
     const data = await res.json();
     __hasPulledOnce = true;
     if(!data || !data.state){
-      localStorage.setItem('rotina_pull_debug', 'falsy-data:' + JSON.stringify(data));
       flushPendingPushIfAny();
       return;
     }
@@ -1972,17 +1971,14 @@ async function pullStateOnLoad(){
     if(data.updatedAt > localUpdatedAt){
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
       applySyncedState(data.state);
-      localStorage.setItem('rotina_pull_debug', 'adopted');
     } else if(localUpdatedAt > 0){
       // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
       pushStateToServer();
-      localStorage.setItem('rotina_pull_debug', 'pushed-local-newer');
     }
     flushPendingPushIfAny();
   } catch(e){
     // offline; a próxima abertura do app tenta de novo. Ainda assim libera envios
     // futuros — senão um aparelho genuinamente offline nunca mais sincronizaria.
-    localStorage.setItem('rotina_pull_debug', 'catch:' + (e && e.message));
     __hasPulledOnce = true;
     flushPendingPushIfAny();
   }
@@ -3722,6 +3718,10 @@ openTabFromQuery();
 setInterval(checkAlerts, 30000);
 setInterval(renderNextUp, 30000);
 pullStateOnLoad();
+// Segunda tentativa rápida (poucos segundos depois): se a primeira, logo na
+// abertura do app, esbarrar em alguma instabilidade de rede momentânea, isso
+// evita que o aparelho fique até 60s sem os dados reais sincronizados.
+setTimeout(pullStateOnLoad, 4000);
 setInterval(pullStateOnLoad, 60000);
 
 if('serviceWorker' in navigator){
