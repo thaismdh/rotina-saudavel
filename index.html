@@ -456,6 +456,7 @@
         <button class="config-nav-btn" data-panel="notificacoes" type="button"><span class="config-nav-icon">🔔</span><span>Notif.</span></button>
         <button class="config-nav-btn" data-panel="agenda" type="button"><span class="config-nav-icon">🗓️</span><span>Agenda</span></button>
         <button class="config-nav-btn" data-panel="estoque" type="button"><span class="config-nav-icon">💊</span><span>Estoque</span></button>
+        <button class="config-nav-btn" data-panel="skincare" type="button"><span class="config-nav-icon">🧴</span><span>Skincare</span></button>
         <button class="config-nav-btn" data-panel="personalizacao" type="button"><span class="config-nav-icon">✨</span><span>Frases</span></button>
         <button class="config-nav-btn" data-panel="dados" type="button"><span class="config-nav-icon">💾</span><span>Dados</span></button>
       </div>
@@ -686,6 +687,38 @@
             <h2>Estoque de remédios e vitaminas</h2>
             <div class="time" style="margin-bottom:8px;">Quantas doses restam de cada um. Desconta 1 automaticamente sempre que você marcar como tomado na aba Remédios.</div>
             <div id="stock-fields"></div>
+          </div>
+        </div>
+
+        <div class="config-panel" data-panel="skincare" style="display:none">
+          <div class="card">
+            <h2>Passos de skincare</h2>
+            <div class="time" style="margin-bottom:8px;">Adicione os passos da sua rotina de skincare (manhã, noite, o que for). Eles aparecem em "Sua rotina de hoje", junto com o resto.</div>
+            <div id="skincare-list" style="margin-bottom:12px;"></div>
+            <label>Nome</label>
+            <input type="text" id="cfg-new-skincare-name" placeholder="Ex: Sérum de vitamina C">
+            <div class="grid2">
+              <div>
+                <label>Horário</label>
+                <input type="time" id="cfg-new-skincare-time" value="07:00">
+              </div>
+              <div>
+                <label>Dias</label>
+                <select id="cfg-new-skincare-days">
+                  <option value="all" selected>Todos os dias</option>
+                  <option value="weekdays">Dias de semana</option>
+                  <option value="weekend">Fim de semana</option>
+                  <option value="0">Domingo</option>
+                  <option value="1">Segunda</option>
+                  <option value="2">Terça</option>
+                  <option value="3">Quarta</option>
+                  <option value="4">Quinta</option>
+                  <option value="5">Sexta</option>
+                  <option value="6">Sábado</option>
+                </select>
+              </div>
+            </div>
+            <button class="save-btn" id="btn-add-skincare" type="button" style="margin-top:8px;">Adicionar passo</button>
           </div>
         </div>
 
@@ -927,6 +960,7 @@ const NATURE_ICONS = {
   leaf: '<path d="M20 31V19"/><path d="M20 19c0-6 3-10 9-11 1 6-3 10-9 11Z"/><path d="M20 23c0-4-2-7-6-8 0 4 2 7 6 8Z"/>',
   cart: '<path d="M8 11h4l3 15h13l3-11H14"/><circle cx="16" cy="30" r="2"/><circle cx="25" cy="30" r="2"/>',
   chart: '<path d="M10 27 16 20l5 4 9-11"/><path d="M24 15h6v6"/>',
+  drop: '<path d="M20 10c4 6 7 10 7 13a7 7 0 0 1-14 0c0-3 3-7 7-13Z"/>',
 };
 function natureIcon(pose){
   const path = NATURE_ICONS[pose] || '';
@@ -987,6 +1021,25 @@ function addCustomMed(name, time, days){
 function removeCustomMed(id){
   const list = loadCustomMeds().filter(m=>m.id !== id);
   saveCustomMeds(list);
+}
+// ---------- Skincare (passos da rotina, adicionar/remover) ----------
+function loadCustomSkincare(){
+  const raw = localStorage.getItem('rotina_custom_skincare');
+  return raw ? JSON.parse(raw) : [];
+}
+function saveCustomSkincare(list){
+  localStorage.setItem('rotina_custom_skincare', JSON.stringify(list));
+  markDirtyAndSync();
+}
+function addCustomSkincare(name, time, days){
+  const list = loadCustomSkincare();
+  const id = 'skincare_' + Date.now();
+  list.push({id, name, time, days: days || 'all'});
+  saveCustomSkincare(list);
+}
+function removeCustomSkincare(id){
+  const list = loadCustomSkincare().filter(s=>s.id !== id);
+  saveCustomSkincare(list);
 }
 function medMatchesDay(med, dow){
   const d = med.days;
@@ -1288,6 +1341,11 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
   loadCustomMeds().forEach(med=>{
     if(!medMatchesDay(med, dow)) return;
     blocks.push({key: med.id, icon:'pill', title: med.name, start: toMin(med.time), minutes: 0, instant:true});
+  });
+
+  loadCustomSkincare().forEach(step=>{
+    if(!medMatchesDay(step, dow)) return;
+    blocks.push({key: step.id, icon:'drop', title: step.name, start: toMin(step.time), minutes: 5});
   });
 
   blocks.sort((a,b)=>a.start-b.start);
@@ -1701,6 +1759,7 @@ function buildSyncPayload(){
     therapyJournal: loadTherapyJournal(),
     progressStart: loadProgressStart(),
     customMeds: loadCustomMeds(),
+    customSkincare: loadCustomSkincare(),
   };
 }
 
@@ -1720,12 +1779,14 @@ function applySyncedState(state){
   if(state.therapyJournal) localStorage.setItem('rotina_therapy_journal', JSON.stringify(state.therapyJournal));
   if(state.progressStart) localStorage.setItem('rotina_progress_start', state.progressStart);
   if(state.customMeds) localStorage.setItem('rotina_custom_meds', JSON.stringify(state.customMeds));
+  if(state.customSkincare) localStorage.setItem('rotina_custom_skincare', JSON.stringify(state.customSkincare));
 
   // Re-renderiza tudo com os dados sincronizados, sem disparar um novo push
   // (essas chamadas de render não passam pelas funções save*, então não re-agendam sync).
   applyTheme(localStorage.getItem('rotina_theme') || 'dark');
   fillConfigForm();
   renderMedsList();
+  renderSkincareList();
   renderStockFields();
   renderCustomPhrasesList();
   renderShoppingList();
@@ -3171,6 +3232,52 @@ document.getElementById('btn-add-med').addEventListener('click', ()=>{
   renderRemedios();
 });
 
+function renderSkincareList(){
+  const el = document.getElementById('skincare-list');
+  if(!el) return;
+  const steps = loadCustomSkincare();
+  el.innerHTML = '';
+  if(steps.length === 0){
+    el.innerHTML = '<div class="empty">Nenhum passo cadastrado ainda.</div>';
+    return;
+  }
+  steps.forEach(step=>{
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="info">
+        <div class="title" style="font-weight:400;">${step.name}</div>
+        <div class="time">${step.time} · ${medDaysLabel(step.days)}</div>
+      </div>
+      <button class="timer-btn" data-id="${step.id}" type="button">Remover</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      removeCustomSkincare(btn.dataset.id);
+      renderSkincareList();
+      renderSchedule();
+      renderNextUp();
+    });
+  });
+}
+document.getElementById('btn-add-skincare').addEventListener('click', ()=>{
+  const nameInput = document.getElementById('cfg-new-skincare-name');
+  const timeInput = document.getElementById('cfg-new-skincare-time');
+  const daysInput = document.getElementById('cfg-new-skincare-days');
+  const name = nameInput.value.trim();
+  const time = timeInput.value;
+  if(!name || !time) return;
+  addCustomSkincare(name, time, daysInput.value);
+  nameInput.value = '';
+  timeInput.value = '';
+  daysInput.value = 'all';
+  renderSkincareList();
+  renderSchedule();
+  renderNextUp();
+});
+
 // ---------- Backup: exportar / importar ----------
 function exportBackup(){
   const data = {
@@ -3184,6 +3291,7 @@ function exportBackup(){
     stock: loadStock(),
     customPhrases: loadCustomPhrases(),
     customMeds: loadCustomMeds(),
+    customSkincare: loadCustomSkincare(),
     mood: loadMood(),
     selfcare: loadSelfcare(),
   };
@@ -3211,6 +3319,7 @@ function importBackup(file){
       if(data.stock) saveStock(data.stock);
       if(data.customPhrases) saveCustomPhrases(data.customPhrases);
       if(data.customMeds) saveCustomMeds(data.customMeds);
+      if(data.customSkincare) saveCustomSkincare(data.customSkincare);
       if(data.mood) localStorage.setItem('rotina_mood', JSON.stringify(data.mood));
       if(data.selfcare) localStorage.setItem('rotina_selfcare', JSON.stringify(data.selfcare));
       alert('Backup importado! A página vai recarregar.');
@@ -3472,6 +3581,7 @@ document.querySelectorAll('nav .nav-icon[data-icon]').forEach(el=>{
 initTheme();
 fillConfigForm();
 renderMedsList();
+renderSkincareList();
 renderStockFields();
 renderCustomPhrasesList();
 renderShoppingList();
