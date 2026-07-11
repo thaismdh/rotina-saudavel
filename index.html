@@ -1977,10 +1977,14 @@ async function pullStateOnLoad(){
     }
     flushPendingPushIfAny();
   } catch(e){
-    // offline; a próxima abertura do app tenta de novo. Ainda assim libera envios
-    // futuros — senão um aparelho genuinamente offline nunca mais sincronizaria.
-    __hasPulledOnce = true;
-    flushPendingPushIfAny();
+    // Falha de rede (offline ou instabilidade momentânea): NÃO libera envios
+    // pendentes aqui. Se liberássemos, um simples soluço de rede logo na
+    // abertura do app (sem nunca ter confirmado o estado real do servidor)
+    // deixaria passar um push com dados locais incompletos — o mesmo tipo de
+    // bug que o guard inteiro existe pra evitar. Em vez disso, deixamos
+    // __pendingPushAfterInitialPull como está: a nova tentativa em 4s, ou o
+    // setInterval de 60s, vai eventualmente conseguir um pull bem-sucedido e
+    // liberar o envio pendente com segurança naquele momento.
   }
 }
 
