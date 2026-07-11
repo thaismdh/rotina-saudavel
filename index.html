@@ -555,10 +555,7 @@
                 <input type="number" id="cfg-meal-duration" value="30" min="0" step="5">
               </div>
             </div>
-            <label>Subtramina: minutos antes do almoço</label>
-            <input type="number" id="cfg-sub-before" value="15" min="0" step="5">
-            <label>Synthroid: minutos antes do café</label>
-            <input type="number" id="cfg-syntroid-before" value="30" min="0" step="5">
+            <div class="time" style="margin-top:8px;">O horário de cada remédio (como Synthroid e Subtramina) agora é ajustado direto em Configurar → Estoque.</div>
           </div>
         </div>
 
@@ -611,6 +608,36 @@
         </div>
 
         <div class="config-panel" data-panel="estoque" style="display:none">
+          <div class="card">
+            <h2>Remédios e horários</h2>
+            <div class="time" style="margin-bottom:8px;">Adicione ou remova qualquer remédio, vitamina ou suplemento da sua rotina.</div>
+            <div id="meds-list" style="margin-bottom:12px;"></div>
+            <label>Nome</label>
+            <input type="text" id="cfg-new-med-name" placeholder="Ex: Magnésio">
+            <div class="grid2">
+              <div>
+                <label>Horário</label>
+                <input type="time" id="cfg-new-med-time" value="08:00">
+              </div>
+              <div>
+                <label>Dias</label>
+                <select id="cfg-new-med-days">
+                  <option value="all" selected>Todos os dias</option>
+                  <option value="weekdays">Dias de semana</option>
+                  <option value="weekend">Fim de semana</option>
+                  <option value="0">Domingo</option>
+                  <option value="1">Segunda</option>
+                  <option value="2">Terça</option>
+                  <option value="3">Quarta</option>
+                  <option value="4">Quinta</option>
+                  <option value="5">Sexta</option>
+                  <option value="6">Sábado</option>
+                </select>
+              </div>
+            </div>
+            <button class="save-btn" id="btn-add-med" type="button" style="margin-top:8px;">Adicionar remédio</button>
+          </div>
+
           <div class="card">
             <h2>Estoque de remédios e vitaminas</h2>
             <div class="time" style="margin-bottom:8px;">Quantas doses restam de cada um. Desconta 1 automaticamente sempre que você marcar como tomado na aba Remédios.</div>
@@ -855,22 +882,66 @@ function natureIcon(pose){
   </svg>`;
 }
 
+// ---------- Remédios personalizados (adicionar/remover) ----------
+function loadCustomMeds(){
+  const raw = localStorage.getItem('rotina_custom_meds');
+  if(raw) return JSON.parse(raw);
+  // Primeira vez: monta a lista a partir dos remédios que já existiam fixos no
+  // código, calculando o horário de cada um a partir da config atual. A partir
+  // daqui cada um vira um item comum, editável e removível como qualquer outro.
+  const cfg = loadConfig();
+  const breakfast = toMin(cfg.mealBreakfast);
+  const lunch = toMin(cfg.mealLunch);
+  const dinner = toMin(cfg.mealDinner);
+  const dur = cfg.mealDuration;
+  const gymEnd = toMin(cfg.gymLeave) + (cfg.gymStrength||0) + (cfg.gymCardio||0);
+  const seed = [
+    {id:'syntroid', name:'Synthroid', time: toHHMM(((breakfast - (cfg.syntroidBefore||30))%1440+1440)%1440), days:'all', stockGroup:'syntroid'},
+    {id:'natifa_pro', name:'Natifa Pro', time: toHHMM(breakfast), days:'all', stockGroup:'natifa_pro'},
+    {id:'omega3', name:'Ômega 3', time: toHHMM(breakfast), days:'all', stockGroup:'omega3'},
+    {id:'inelatte_zero', name:'Inelatte Zero', time:'10:00', days:'all', stockGroup:'inelatte_zero'},
+    {id:'subtramina', name:'Subtramina', time: toHHMM(((lunch - (cfg.subBefore||15))%1440+1440)%1440), days:'all', stockGroup:'subtramina'},
+    {id:'calde_max', name:'Calde Max', time: toHHMM(lunch + dur), days:'all', stockGroup:'calde_max'},
+    {id:'fisiogen_lunch', name:'Fisiogen', time: toHHMM(lunch + dur + 30), days:'all', stockGroup:'fisiogen'},
+    {id:'fisiogen_dinner', name:'Fisiogen', time: toHHMM(dinner + dur + 30), days:'all', stockGroup:'fisiogen'},
+    {id:'vitamina_d', name:'Adera 7000', time: toHHMM(lunch), days:'5', stockGroup:'vitamina_d'},
+    {id:'whey_protein', name:'WheyProtein - 1 dose', time: toHHMM(gymEnd), days:'weekdays', stockGroup:'whey_protein'},
+  ];
+  localStorage.setItem('rotina_custom_meds', JSON.stringify(seed));
+  return seed;
+}
+function saveCustomMeds(list){
+  localStorage.setItem('rotina_custom_meds', JSON.stringify(list));
+  markDirtyAndSync();
+}
+function addCustomMed(name, time, days){
+  const list = loadCustomMeds();
+  const id = 'med_' + Date.now();
+  list.push({id, name, time, days: days || 'all', stockGroup: id});
+  saveCustomMeds(list);
+}
+function removeCustomMed(id){
+  const list = loadCustomMeds().filter(m=>m.id !== id);
+  saveCustomMeds(list);
+}
+function medMatchesDay(med, dow){
+  const d = med.days;
+  if(!d || d === 'all') return true;
+  if(d === 'weekdays') return dow >= 1 && dow <= 5;
+  if(d === 'weekend') return dow === 0 || dow === 6;
+  const n = Number(d);
+  return !isNaN(n) && dow === n;
+}
+function medDaysLabel(days){
+  const map = {all:'Todos os dias', weekdays:'Dias de semana', weekend:'Fim de semana', '0':'Domingo','1':'Segunda','2':'Terça','3':'Quarta','4':'Quinta','5':'Sexta','6':'Sábado'};
+  return map[days] || 'Todos os dias';
+}
+
 // ---------- Estoque de remédios/vitaminas ----------
-const MED_STOCK_LABELS = {
-  syntroid: 'Synthroid',
-  natifa_pro: 'Natifa Pro',
-  omega3: 'Ômega 3',
-  subtramina: 'Subtramina',
-  calde_max: 'Calde Max',
-  fisiogen: 'Fisiogen',
-  vitamina_d: 'Adera 7000',
-  inelatte_zero: 'Inelatte Zero',
-  whey_protein: 'WheyProtein - 1 dose',
-};
 const LOW_STOCK_THRESHOLD = 5;
 function medStockKeyFor(blockKey){
-  if(blockKey === 'fisiogen_lunch' || blockKey === 'fisiogen_dinner') return 'fisiogen';
-  return blockKey;
+  const med = loadCustomMeds().find(m=>m.id === blockKey);
+  return (med && med.stockGroup) || blockKey;
 }
 function loadStock(){
   const raw = localStorage.getItem('rotina_stock');
@@ -1096,10 +1167,9 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
     eveningWindow.cursor = start + cfg.readingMin;
   }
 
-  // Vitaminas / medicamentos, calculados a partir dos horários das refeições
-  const breakfast = toMin(cfg.mealBreakfast);
+  // Vitaminas / medicamentos: refeições ainda servem pra calcular vitaminas do dia,
+  // mas cada remédio agora é um item da lista editável (adicionar/remover em Estoque).
   const lunch = toMin(cfg.mealLunch);
-  const dinner = toMin(cfg.mealDinner);
   const dur = cfg.mealDuration;
 
   // Meditação, depois do almoço, só em dias de semana
@@ -1107,20 +1177,10 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
     blocks.push({key:'meditation', icon:'meditate', title:'Meditação', start: lunch + dur, minutes: cfg.meditationMin});
   }
 
-  blocks.push({key:'syntroid', icon:'pill', title:'Synthroid', start: breakfast - cfg.syntroidBefore, minutes: 0, instant:true});
-  blocks.push({key:'natifa_pro', icon:'pill', title:'Natifa Pro', start: breakfast, minutes: 0, instant:true});
-  blocks.push({key:'omega3', icon:'fish', title:'Ômega 3', start: breakfast, minutes: 0, instant:true});
-  blocks.push({key:'inelatte_zero', icon:'pill', title:'Inelatte Zero', start: toMin('10:00'), minutes: 0, instant:true});
-  blocks.push({key:'subtramina', icon:'pill', title:'Subtramina', start: lunch - cfg.subBefore, minutes: 0, instant:true});
-  blocks.push({key:'calde_max', icon:'pill', title:'Calde Max', start: lunch + dur, minutes: 0, instant:true});
-  blocks.push({key:'fisiogen_lunch', icon:'pill', title:'Fisiogen', start: lunch + dur + 30, minutes: 0, instant:true});
-  blocks.push({key:'fisiogen_dinner', icon:'pill', title:'Fisiogen', start: dinner + dur + 30, minutes: 0, instant:true});
-  if(dow === 5){
-    blocks.push({key:'vitamina_d', icon:'sun', title:'Adera 7000', start: lunch, minutes: 0, instant:true});
-  }
-  if(!travelMode && isWeekday && gymDuration > 0){
-    blocks.push({key:'whey_protein', icon:'pill', title:'WheyProtein - 1 dose', start: gymEnd, minutes: 0, instant:true});
-  }
+  loadCustomMeds().forEach(med=>{
+    if(!medMatchesDay(med, dow)) return;
+    blocks.push({key: med.id, icon:'pill', title: med.name, start: toMin(med.time), minutes: 0, instant:true});
+  });
 
   blocks.sort((a,b)=>a.start-b.start);
 
@@ -1510,6 +1570,7 @@ function buildSyncPayload(){
     shoppingCustom: loadShoppingCustom(),
     therapyJournal: loadTherapyJournal(),
     progressStart: loadProgressStart(),
+    customMeds: loadCustomMeds(),
   };
 }
 
@@ -1527,11 +1588,13 @@ function applySyncedState(state){
   if(state.shoppingCustom) localStorage.setItem('rotina_shopping_custom', JSON.stringify(state.shoppingCustom));
   if(state.therapyJournal) localStorage.setItem('rotina_therapy_journal', JSON.stringify(state.therapyJournal));
   if(state.progressStart) localStorage.setItem('rotina_progress_start', state.progressStart);
+  if(state.customMeds) localStorage.setItem('rotina_custom_meds', JSON.stringify(state.customMeds));
 
   // Re-renderiza tudo com os dados sincronizados, sem disparar um novo push
   // (essas chamadas de render não passam pelas funções save*, então não re-agendam sync).
   applyTheme(localStorage.getItem('rotina_theme') || 'dark');
   fillConfigForm();
+  renderMedsList();
   renderStockFields();
   renderCustomPhrasesList();
   renderShoppingList();
@@ -2249,7 +2312,9 @@ function computeDayCompletion(cfg, history, dateStr){
 }
 
 // ---------- Selos de conquista ----------
-const MED_BLOCK_KEYS = ['syntroid','natifa_pro','omega3','inelatte_zero','subtramina','calde_max','fisiogen_lunch','fisiogen_dinner','vitamina_d','whey_protein'];
+function medBlockKeys(){
+  return loadCustomMeds().map(m=>m.id);
+}
 
 const BADGES = [
   {id:'streak7', icon:'🔥', label:'7 dias seguidos', check: s => s.bestStreak >= 7},
@@ -2280,10 +2345,11 @@ function computeBestStreakEver(cfg, history){
 
 function computeTotalDoses(history, startKey){
   let total = 0;
+  const keys = medBlockKeys();
   Object.keys(history).forEach(dateStr=>{
     if(startKey && dateStr < startKey) return;
     const day = history[dateStr];
-    MED_BLOCK_KEYS.forEach(k=>{ if(day[k]) total++; });
+    keys.forEach(k=>{ if(day[k]) total++; });
   });
   return total;
 }
@@ -2642,8 +2708,6 @@ function fillConfigForm(){
   document.getElementById('cfg-meal-lunch').value = cfg.mealLunch;
   document.getElementById('cfg-meal-dinner').value = cfg.mealDinner;
   document.getElementById('cfg-meal-duration').value = cfg.mealDuration;
-  document.getElementById('cfg-sub-before').value = cfg.subBefore;
-  document.getElementById('cfg-syntroid-before').value = cfg.syntroidBefore;
   document.getElementById('cfg-push-url').value = cfg.pushServerUrl || '';
   document.getElementById('cfg-calendar-ical').value = cfg.calendarIcalUrl || '';
   document.getElementById('cfg-daily-summary-enabled').checked = cfg.dailySummaryEnabled !== false;
@@ -2679,23 +2743,37 @@ function stockForecastText(cfg, stockKey, qty){
   return `dura ~${daysLeft} dia${daysLeft===1?'':'s'} (até ${dd}/${mm})`;
 }
 
+function medStockGroups(){
+  const groups = {};
+  loadCustomMeds().forEach(m=>{
+    const g = m.stockGroup || m.id;
+    if(!groups[g]) groups[g] = m.name;
+  });
+  return groups;
+}
+
 function renderStockFields(){
   const el = document.getElementById('stock-fields');
   if(!el) return;
   const stock = loadStock();
   const cfg = loadConfig();
+  const groups = medStockGroups();
   el.innerHTML = '';
-  Object.keys(MED_STOCK_LABELS).forEach(key=>{
+  if(Object.keys(groups).length === 0){
+    el.innerHTML = '<div class="empty">Nenhum remédio cadastrado ainda.</div>';
+    return;
+  }
+  Object.keys(groups).forEach(key=>{
     const wrap = document.createElement('div');
     const forecast = stockForecastText(cfg, key, stock[key]);
     wrap.innerHTML = `
-      <label>${MED_STOCK_LABELS[key]} (doses restantes)</label>
+      <label>${groups[key]} (doses restantes)</label>
       <input type="number" min="0" step="1" id="stock-${key}" value="${typeof stock[key] === 'number' ? stock[key] : ''}" placeholder="não controlado">
       ${forecast ? `<div class="time" style="margin:2px 0 0;">${forecast}</div>` : ''}
     `;
     el.appendChild(wrap);
   });
-  Object.keys(MED_STOCK_LABELS).forEach(key=>{
+  Object.keys(groups).forEach(key=>{
     document.getElementById('stock-'+key).addEventListener('change', (e)=>{
       const s = loadStock();
       const val = e.target.value;
@@ -2707,6 +2785,52 @@ function renderStockFields(){
     });
   });
 }
+
+function renderMedsList(){
+  const el = document.getElementById('meds-list');
+  if(!el) return;
+  const meds = loadCustomMeds();
+  el.innerHTML = '';
+  if(meds.length === 0){
+    el.innerHTML = '<div class="empty">Nenhum remédio cadastrado ainda.</div>';
+    return;
+  }
+  meds.forEach(med=>{
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="info">
+        <div class="title" style="font-weight:400;">${med.name}</div>
+        <div class="time">${med.time} · ${medDaysLabel(med.days)}</div>
+      </div>
+      <button class="timer-btn" data-id="${med.id}" type="button">Remover</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      removeCustomMed(btn.dataset.id);
+      renderMedsList();
+      renderStockFields();
+      renderRemedios();
+    });
+  });
+}
+document.getElementById('btn-add-med').addEventListener('click', ()=>{
+  const nameInput = document.getElementById('cfg-new-med-name');
+  const timeInput = document.getElementById('cfg-new-med-time');
+  const daysInput = document.getElementById('cfg-new-med-days');
+  const name = nameInput.value.trim();
+  const time = timeInput.value;
+  if(!name || !time) return;
+  addCustomMed(name, time, daysInput.value);
+  nameInput.value = '';
+  timeInput.value = '';
+  daysInput.value = 'all';
+  renderMedsList();
+  renderStockFields();
+  renderRemedios();
+});
 
 // ---------- Backup: exportar / importar ----------
 function exportBackup(){
@@ -2720,6 +2844,7 @@ function exportBackup(){
     freeDays: loadFreeDays(),
     stock: loadStock(),
     customPhrases: loadCustomPhrases(),
+    customMeds: loadCustomMeds(),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2744,6 +2869,7 @@ function importBackup(file){
       if(data.freeDays) localStorage.setItem('rotina_free_days', JSON.stringify(data.freeDays));
       if(data.stock) saveStock(data.stock);
       if(data.customPhrases) saveCustomPhrases(data.customPhrases);
+      if(data.customMeds) saveCustomMeds(data.customMeds);
       alert('Backup importado! A página vai recarregar.');
       location.reload();
     } catch(e){
@@ -2866,8 +2992,6 @@ function saveConfigFromForm(){
     mealLunch: document.getElementById('cfg-meal-lunch').value,
     mealDinner: document.getElementById('cfg-meal-dinner').value,
     mealDuration: Number(document.getElementById('cfg-meal-duration').value),
-    subBefore: Number(document.getElementById('cfg-sub-before').value),
-    syntroidBefore: Number(document.getElementById('cfg-syntroid-before').value),
     pushServerUrl: document.getElementById('cfg-push-url').value.trim(),
     calendarIcalUrl: document.getElementById('cfg-calendar-ical').value.trim(),
     dailySummaryEnabled: document.getElementById('cfg-daily-summary-enabled').checked,
@@ -2969,6 +3093,7 @@ const restdayCardIconEl = document.getElementById('restday-card-icon');
 if(restdayCardIconEl) restdayCardIconEl.innerHTML = natureIcon('sun');
 initTheme();
 fillConfigForm();
+renderMedsList();
 renderStockFields();
 renderCustomPhrasesList();
 renderShoppingList();
