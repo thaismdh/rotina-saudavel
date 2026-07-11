@@ -1819,6 +1819,11 @@ let __syncDebounceTimer = null;
 let __hasPulledOnce = false;
 let __pendingPushAfterInitialPull = false;
 function markDirtyAndSync(){
+  try{
+    const log = JSON.parse(localStorage.getItem('rotina_mds_log')||'[]');
+    log.push({hasPulledOnce: __hasPulledOnce, ts: Date.now()});
+    localStorage.setItem('rotina_mds_log', JSON.stringify(log));
+  }catch(e){}
   if(!__hasPulledOnce){
     // Não mexe no timestamp ainda: se mexêssemos agora, o pullStateOnLoad (que
     // ainda não terminou) ia comparar esse "agora" com o timestamp (mais
