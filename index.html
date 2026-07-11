@@ -580,6 +580,11 @@
       <div class="time" style="margin-bottom:8px;">Gera um relatório dos últimos 30 dias pra levar ao médico ou terapeuta. Abre a caixa de impressão — escolha "Salvar como PDF".</div>
       <button class="save-btn" id="btn-generate-report" type="button">Gerar relatório (últimos 30 dias)</button>
     </div>
+
+    <div class="card">
+      <div class="time" style="margin-bottom:8px;">Termine por aqui pra salvar tudo que você mudou nesta aba, incluindo as seções acima.</div>
+      <button class="save-btn" id="btn-save-config-bottom" type="button">Salvar e gerar rotina</button>
+    </div>
   </section>
 
   <!-- TAB: PROGRESSO -->
@@ -2757,7 +2762,7 @@ document.getElementById('input-import-backup').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(file) importBackup(file);
 });
-document.getElementById('btn-save-config').addEventListener('click', ()=>{
+function saveConfigFromForm(){
   const cfg = {
     wake: document.getElementById('cfg-wake').value,
     sleep: document.getElementById('cfg-sleep').value,
@@ -2805,7 +2810,9 @@ document.getElementById('btn-save-config').addEventListener('click', ()=>{
   renderStockFields();
   renderWater();
   document.querySelector('nav button[data-tab="hoje"]').click();
-});
+}
+document.getElementById('btn-save-config').addEventListener('click', saveConfigFromForm);
+document.getElementById('btn-save-config-bottom').addEventListener('click', saveConfigFromForm);
 
 // ---------- Tabs ----------
 const ALL_TABS = ['hoje','remedios','config','progresso','compras','terapia'];
