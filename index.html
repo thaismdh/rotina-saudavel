@@ -334,6 +334,7 @@
   <div class="tagline" id="daily-phrase">✨</div>
   <div class="header-chips">
     <div class="weather-chip" id="weather-chip" style="display:none;"></div>
+    <div class="weather-chip" id="moon-chip" style="display:none;"></div>
     <button id="theme-toggle" class="chip-btn" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">🌙</button>
     <button id="btn-open-settings" class="chip-btn" type="button" title="Configurar" aria-label="Configurar">⚙️</button>
   </div>
@@ -362,6 +363,11 @@
     <div class="card">
       <h2>Como você está hoje?</h2>
       <div class="mood-row" id="mood-row"></div>
+    </div>
+    <div class="card">
+      <h2>Cuidado comigo</h2>
+      <div class="time" style="margin-bottom:8px;">Hoje você cuidou de si tanto quanto cuidou dos outros?</div>
+      <div class="mood-row" id="selfcare-row"></div>
     </div>
     <div class="card" id="calendar-card" style="display:none;">
       <h2>📅 Agenda de hoje</h2>
@@ -556,6 +562,10 @@
             <input type="number" id="cfg-meditation-min" value="10" min="0" step="5">
             <label>Leitura antes de dormir (minutos, meta: 3x/semana)</label>
             <input type="number" id="cfg-reading-min" value="20" min="0" step="5">
+            <label>Aterramento / contato com a natureza (minutos, 0 desativa)</label>
+            <input type="number" id="cfg-grounding-min" value="5" min="0" step="5">
+            <label>Horário do aterramento</label>
+            <input type="time" id="cfg-grounding-time" value="18:00">
           </div>
         </div>
 
@@ -782,6 +792,7 @@
   <section id="tab-terapia" style="display:none">
     <div class="card">
       <h2>Diário de terapia</h2>
+      <div id="perspective-prompt" style="display:none;font-style:italic;color:var(--muted);font-size:.85rem;margin-bottom:10px;padding:8px 10px;background:var(--primary-light);border-radius:10px;"></div>
       <label>Data da sessão</label>
       <input type="date" id="therapy-journal-date">
       <label>Notas</label>
@@ -831,6 +842,7 @@ const DEFAULT_CONFIG = {
   calendarIcalUrl: "",
   dailySummaryEnabled: true, dailySummaryTime: "07:00",
   weeklySummaryEnabled: true,
+  groundingMin: 5, groundingTime: "18:00",
   reminderSoundEnabled: true,
   waterEnabled: true, waterGoal: 8, waterIntervalMin: 120
 };
@@ -1058,6 +1070,45 @@ function renderMood(){
   });
 }
 
+// ---------- Cuidado comigo (limites/autocuidado) ----------
+const SELFCARE_OPTIONS = [
+  {value:1, label:'Não'},
+  {value:2, label:'Mais ou menos'},
+  {value:3, label:'Sim'},
+];
+function loadSelfcare(){
+  const raw = localStorage.getItem('rotina_selfcare');
+  return raw ? JSON.parse(raw) : {};
+}
+function saveSelfcare(m){
+  localStorage.setItem('rotina_selfcare', JSON.stringify(m));
+  markDirtyAndSync();
+}
+function setTodaySelfcare(value){
+  const m = loadSelfcare();
+  m[todayKey()] = value;
+  saveSelfcare(m);
+}
+function renderSelfcare(){
+  const el = document.getElementById('selfcare-row');
+  if(!el) return;
+  const data = loadSelfcare();
+  const current = data[todayKey()];
+  el.innerHTML = '';
+  SELFCARE_OPTIONS.forEach(opt=>{
+    const btn = document.createElement('button');
+    btn.className = 'mood-btn' + (current === opt.value ? ' selected' : '');
+    btn.type = 'button';
+    btn.style.fontSize = '.8rem';
+    btn.textContent = opt.label;
+    btn.addEventListener('click', ()=>{
+      setTodaySelfcare(opt.value);
+      renderSelfcare();
+    });
+    el.appendChild(btn);
+  });
+}
+
 // ---------- Snooze de lembretes ----------
 function loadSnooze(){
   const raw = localStorage.getItem('rotina_snooze');
@@ -1227,6 +1278,11 @@ function buildSchedule(cfg, dow, travelMode, skipStudy){
   // Meditação, depois do almoço, só em dias de semana
   if(isWeekday && cfg.meditationMin > 0){
     blocks.push({key:'meditation', icon:'meditate', title:'Meditação', start: lunch + dur, minutes: cfg.meditationMin});
+  }
+
+  // Aterramento / contato com a natureza, todo dia
+  if(cfg.groundingMin > 0){
+    blocks.push({key:'grounding', icon:'leaf', title:'Aterramento (contato com a natureza)', start: toMin(cfg.groundingTime || '18:00'), minutes: cfg.groundingMin});
   }
 
   loadCustomMeds().forEach(med=>{
@@ -1637,6 +1693,7 @@ function buildSyncPayload(){
     travelDays: loadTravelDays(),
     freeDays: loadFreeDays(),
     mood: loadMood(),
+    selfcare: loadSelfcare(),
     customPhrases: loadCustomPhrases(),
     theme: localStorage.getItem('rotina_theme') || 'dark',
     shoppingState: loadShoppingState(),
@@ -1655,6 +1712,7 @@ function applySyncedState(state){
   if(state.travelDays) localStorage.setItem('rotina_travel_days', JSON.stringify(state.travelDays));
   if(state.freeDays) localStorage.setItem('rotina_free_days', JSON.stringify(state.freeDays));
   if(state.mood) localStorage.setItem('rotina_mood', JSON.stringify(state.mood));
+  if(state.selfcare) localStorage.setItem('rotina_selfcare', JSON.stringify(state.selfcare));
   if(state.customPhrases) localStorage.setItem('rotina_custom_phrases', JSON.stringify(state.customPhrases));
   if(state.theme) localStorage.setItem('rotina_theme', state.theme);
   if(state.shoppingState) localStorage.setItem('rotina_shopping_state', JSON.stringify(state.shoppingState));
@@ -1674,6 +1732,7 @@ function applySyncedState(state){
   renderCustomShoppingList();
   renderTherapyJournal();
   renderMood();
+  renderSelfcare();
   renderNextUp();
   renderSchedule();
   renderRemedios();
@@ -2275,11 +2334,40 @@ function formatDatePtBr(dateStr){
   const d = new Date(dateStr+'T12:00:00');
   return d.toLocaleDateString('pt-BR');
 }
+
+// Prompt ocasional de "olhar pelo ângulo do outro" (não todo dia, pra não virar tarefa)
+const PERSPECTIVE_PROMPTS = [
+  'Teve algum momento hoje que valeria a pena olhar pelo ângulo da outra pessoa?',
+  'Alguém discordou de você hoje? Como seria ver essa situação com os olhos dela?',
+  'Existe alguma conversa pendente em que ouvir mais e falar menos ajudaria?',
+  'O que a outra pessoa dessa situação estaria sentindo agora, na visão dela?',
+  'Antes de concluir que alguém está errado, vale a pena entender o motivo por trás?',
+];
+function getPerspectivePromptForToday(){
+  const key = todayKey();
+  let hash = 0;
+  for(let i=0;i<key.length;i++){ hash = (hash*31 + key.charCodeAt(i)) >>> 0; }
+  if(hash % 3 !== 0) return null; // aparece em ~1 a cada 3 dias
+  const idx = Math.floor(hash / 3) % PERSPECTIVE_PROMPTS.length;
+  return PERSPECTIVE_PROMPTS[idx];
+}
+function renderPerspectivePrompt(){
+  const el = document.getElementById('perspective-prompt');
+  if(!el) return;
+  const prompt = getPerspectivePromptForToday();
+  if(prompt){
+    el.textContent = `💭 ${prompt}`;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
 function renderTherapyJournal(){
   const dateInput = document.getElementById('therapy-journal-date');
   const textInput = document.getElementById('therapy-journal-text');
   const listEl = document.getElementById('therapy-journal-list');
   if(!dateInput || !textInput || !listEl) return;
+  renderPerspectivePrompt();
   if(!dateInput.value) dateInput.value = todayKey();
   const journal = loadTherapyJournal();
   textInput.value = journal[dateInput.value] || '';
@@ -2367,6 +2455,36 @@ async function initWeather(){
   }, ()=>{
     // permission denied or unavailable — leave the chip hidden
   }, { timeout: 8000 });
+}
+
+// ---------- Fase da lua ----------
+function getMoonPhase(date){
+  date = date || new Date();
+  const synodicMonth = 29.530588853;
+  const knownNewMoon = Date.UTC(2000,0,6,18,14,0);
+  const diffDays = (date.getTime() - knownNewMoon) / 86400000;
+  let phase = (diffDays % synodicMonth) / synodicMonth;
+  if(phase < 0) phase += 1;
+  const phases = [
+    {max:0.03, emoji:'🌑', label:'Lua Nova'},
+    {max:0.22, emoji:'🌒', label:'Lua Crescente'},
+    {max:0.28, emoji:'🌓', label:'Quarto Crescente'},
+    {max:0.47, emoji:'🌔', label:'Gibosa Crescente'},
+    {max:0.53, emoji:'🌕', label:'Lua Cheia'},
+    {max:0.72, emoji:'🌖', label:'Gibosa Minguante'},
+    {max:0.78, emoji:'🌗', label:'Quarto Minguante'},
+    {max:0.97, emoji:'🌘', label:'Lua Minguante'},
+    {max:1.01, emoji:'🌑', label:'Lua Nova'},
+  ];
+  return phases.find(p => phase <= p.max) || phases[0];
+}
+function renderMoonPhase(){
+  const chip = document.getElementById('moon-chip');
+  if(!chip) return;
+  const { emoji, label } = getMoonPhase();
+  chip.textContent = `${emoji} ${label}`;
+  chip.title = label;
+  chip.style.display = '';
 }
 
 // ---------- Calendário (link secreto iCal via Worker) ----------
@@ -2892,6 +3010,8 @@ function fillConfigForm(){
   document.getElementById('cfg-morning-practice-min').value = cfg.morningPracticeMin;
   document.getElementById('cfg-meditation-min').value = cfg.meditationMin;
   document.getElementById('cfg-reading-min').value = cfg.readingMin;
+  document.getElementById('cfg-grounding-min').value = cfg.groundingMin;
+  document.getElementById('cfg-grounding-time').value = cfg.groundingTime || '18:00';
   document.getElementById('cfg-meal-breakfast').value = cfg.mealBreakfast;
   document.getElementById('cfg-meal-lunch').value = cfg.mealLunch;
   document.getElementById('cfg-meal-dinner').value = cfg.mealDinner;
@@ -3064,6 +3184,8 @@ function exportBackup(){
     stock: loadStock(),
     customPhrases: loadCustomPhrases(),
     customMeds: loadCustomMeds(),
+    mood: loadMood(),
+    selfcare: loadSelfcare(),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -3089,6 +3211,8 @@ function importBackup(file){
       if(data.stock) saveStock(data.stock);
       if(data.customPhrases) saveCustomPhrases(data.customPhrases);
       if(data.customMeds) saveCustomMeds(data.customMeds);
+      if(data.mood) localStorage.setItem('rotina_mood', JSON.stringify(data.mood));
+      if(data.selfcare) localStorage.setItem('rotina_selfcare', JSON.stringify(data.selfcare));
       alert('Backup importado! A página vai recarregar.');
       location.reload();
     } catch(e){
@@ -3208,6 +3332,8 @@ function saveConfigFromForm(){
     morningPracticeMin: Number(document.getElementById('cfg-morning-practice-min').value),
     meditationMin: Number(document.getElementById('cfg-meditation-min').value),
     readingMin: Number(document.getElementById('cfg-reading-min').value),
+    groundingMin: Number(document.getElementById('cfg-grounding-min').value),
+    groundingTime: document.getElementById('cfg-grounding-time').value,
     mealBreakfast: document.getElementById('cfg-meal-breakfast').value,
     mealLunch: document.getElementById('cfg-meal-lunch').value,
     mealDinner: document.getElementById('cfg-meal-dinner').value,
@@ -3354,9 +3480,11 @@ renderTherapyJournal();
 setTodayLabel();
 renderDailyPhrase();
 initWeather();
+renderMoonPhase();
 renderTravelToggle();
 renderRestToggle();
 renderMood();
+renderSelfcare();
 renderNextUp();
 renderSchedule();
 renderRemedios();
