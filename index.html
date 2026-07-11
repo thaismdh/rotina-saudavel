@@ -1968,15 +1968,21 @@ async function pullStateOnLoad(){
       return;
     }
     const localUpdatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || 0;
+    localStorage.setItem('rotina_pull_debug', JSON.stringify({serverUpdatedAt:data.updatedAt, localUpdatedAt, hasStateConfig: !!data.state.config, ts: Date.now()}));
     if(data.updatedAt > localUpdatedAt){
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
       applySyncedState(data.state);
+      localStorage.setItem('rotina_pull_debug2', 'adopted, configAfter=' + !!localStorage.getItem('rotina_config'));
     } else if(localUpdatedAt > 0){
       // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
       pushStateToServer();
+      localStorage.setItem('rotina_pull_debug2', 'pushed-instead');
+    } else {
+      localStorage.setItem('rotina_pull_debug2', 'neither-branch');
     }
     flushPendingPushIfAny();
   } catch(e){
+    localStorage.setItem('rotina_pull_debug', 'EXCEPTION: ' + e.message);
     // Falha de rede (offline ou instabilidade momentânea): NÃO libera envios
     // pendentes aqui. Se liberássemos, um simples soluço de rede logo na
     // abertura do app (sem nunca ter confirmado o estado real do servidor)
