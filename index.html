@@ -306,8 +306,8 @@
   .next-up-row .info .title{font-weight:700;font-size:1rem;}
   .next-up-row .info .time{font-size:.82rem;color:var(--muted);}
   .badges-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
-  .badge{text-align:center;padding:10px 4px;border-radius:12px;background:var(--primary-light);opacity:.35;}
-  .badge.unlocked{opacity:1;}
+  .badge{text-align:center;padding:10px 4px;border-radius:12px;background:var(--primary-light);opacity:.35;border:1px solid transparent;transition:opacity .2s, box-shadow .2s, border-color .2s;}
+  .badge.unlocked{opacity:1;border-color:var(--ink);box-shadow:0 0 14px -5px var(--ink);}
   .badge .badge-icon{font-size:1.6rem;}
   .badge .badge-label{font-size:.7rem;color:var(--muted);margin-top:4px;}
   .shop-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
