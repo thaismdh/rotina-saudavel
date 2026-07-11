@@ -170,6 +170,38 @@
     cursor:pointer;
   }
   .save-btn:active{opacity:.85;}
+  .config-layout{display:flex;gap:8px;align-items:flex-start;}
+  .config-sidebar{
+    flex-shrink:0;
+    width:72px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .config-nav-btn{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    background:none;
+    border:none;
+    border-left:3px solid transparent;
+    border-radius:0 8px 8px 0;
+    padding:8px 2px;
+    cursor:pointer;
+    color:var(--muted);
+    font-family:inherit;
+  }
+  .config-nav-btn .config-nav-icon{font-size:18px;line-height:1;}
+  .config-nav-btn span:last-child{font-size:10px;text-align:center;line-height:1.2;}
+  .config-nav-btn.active{
+    background:var(--primary-light);
+    border-left-color:var(--primary);
+    color:var(--text);
+    font-weight:600;
+  }
+  .config-content{flex:1;min-width:0;}
+  .config-content .card{margin-top:0;margin-bottom:12px;}
   .streak{
     display:flex;
     justify-content:space-around;
@@ -382,208 +414,236 @@
 
   <!-- TAB: CONFIG -->
   <section id="tab-config" style="display:none">
-    <div class="card">
-      <h2>Seu dia</h2>
-      <div class="grid2">
-        <div>
-          <label>Acordar</label>
-          <input type="time" id="cfg-wake" value="06:30">
+    <div class="config-layout">
+      <div class="config-sidebar">
+        <button class="config-nav-btn active" data-panel="rotina" type="button"><span class="config-nav-icon">🌱</span><span>Rotina</span></button>
+        <button class="config-nav-btn" data-panel="refeicoes" type="button"><span class="config-nav-icon">🍽️</span><span>Refeições</span></button>
+        <button class="config-nav-btn" data-panel="notificacoes" type="button"><span class="config-nav-icon">🔔</span><span>Notif.</span></button>
+        <button class="config-nav-btn" data-panel="agenda" type="button"><span class="config-nav-icon">🗓️</span><span>Agenda</span></button>
+        <button class="config-nav-btn" data-panel="estoque" type="button"><span class="config-nav-icon">💊</span><span>Estoque</span></button>
+        <button class="config-nav-btn" data-panel="personalizacao" type="button"><span class="config-nav-icon">✨</span><span>Frases</span></button>
+        <button class="config-nav-btn" data-panel="dados" type="button"><span class="config-nav-icon">💾</span><span>Dados</span></button>
+      </div>
+
+      <div class="config-content">
+
+        <div class="config-panel" data-panel="rotina">
+          <div class="card">
+            <h2>Seu dia</h2>
+            <div class="grid2">
+              <div>
+                <label>Acordar</label>
+                <input type="time" id="cfg-wake" value="06:30">
+              </div>
+              <div>
+                <label>Dormir</label>
+                <input type="time" id="cfg-sleep" value="22:30">
+              </div>
+              <div>
+                <label>Início do trabalho</label>
+                <input type="time" id="cfg-work-start" value="09:00">
+              </div>
+              <div>
+                <label>Fim do trabalho</label>
+                <input type="time" id="cfg-work-end" value="18:00">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Terça-feira · terapia</h2>
+            <div class="grid2">
+              <div>
+                <label>Início da terapia</label>
+                <input type="time" id="cfg-therapy-start" value="08:20">
+              </div>
+              <div>
+                <label>Fim da terapia</label>
+                <input type="time" id="cfg-therapy-end" value="09:00">
+              </div>
+            </div>
+            <label>Horário da academia na terça (mais cedo)</label>
+            <input type="time" id="cfg-gym-leave-tue" value="06:30">
+          </div>
+
+          <div class="card">
+            <h2>Suas metas diárias</h2>
+            <label>Estudo (minutos, meta: pelo menos 3x/semana)</label>
+            <input type="number" id="cfg-study-min" value="60" min="0" step="5">
+            <label>Prefiro estudar</label>
+            <select id="cfg-study-pref">
+              <option value="morning">De manhã (antes do trabalho)</option>
+              <option value="evening" selected>À noite (depois do trabalho)</option>
+            </select>
+
+            <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia (meta: 4x/semana)</div>
+            <label>Horário da academia</label>
+            <input type="time" id="cfg-gym-leave" value="07:00">
+            <div class="grid2">
+              <div>
+                <label>Musculação (min)</label>
+                <input type="number" id="cfg-gym-strength" value="40" min="0" step="5">
+              </div>
+              <div>
+                <label>Cardio (min)</label>
+                <input type="number" id="cfg-gym-cardio" value="20" min="0" step="5">
+              </div>
+            </div>
+
+            <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Fim de semana</div>
+            <div class="grid2">
+              <div>
+                <label>Spinning (sábado)</label>
+                <input type="time" id="cfg-spinning-start" value="09:30">
+              </div>
+              <div>
+                <label>Duração (min)</label>
+                <input type="number" id="cfg-spinning-min" value="45" min="0" step="5">
+              </div>
+            </div>
+            <div class="grid2">
+              <div>
+                <label>Caminhada (domingo)</label>
+                <input type="time" id="cfg-walk-start" value="08:00">
+              </div>
+              <div>
+                <label>Duração (min)</label>
+                <input type="number" id="cfg-walk-min" value="45" min="0" step="5">
+              </div>
+            </div>
+
+            <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Meditação e práticas</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="cfg-morning-practice-enabled" checked>
+              <label>Oração ao acordar (antes de levantar)</label>
+            </div>
+            <label>Duração da prática matinal (min)</label>
+            <input type="number" id="cfg-morning-practice-min" value="10" min="0" step="5">
+            <label>Meditação (depois do almoço, minutos)</label>
+            <input type="number" id="cfg-meditation-min" value="10" min="0" step="5">
+            <label>Leitura antes de dormir (minutos, meta: 3x/semana)</label>
+            <input type="number" id="cfg-reading-min" value="20" min="0" step="5">
+          </div>
         </div>
-        <div>
-          <label>Dormir</label>
-          <input type="time" id="cfg-sleep" value="22:30">
+
+        <div class="config-panel" data-panel="refeicoes" style="display:none">
+          <div class="card">
+            <h2>Refeições (para calcular as vitaminas)</h2>
+            <div class="grid2">
+              <div>
+                <label>Café da manhã</label>
+                <input type="time" id="cfg-meal-breakfast" value="09:00">
+              </div>
+              <div>
+                <label>Almoço</label>
+                <input type="time" id="cfg-meal-lunch" value="12:30">
+              </div>
+              <div>
+                <label>Jantar</label>
+                <input type="time" id="cfg-meal-dinner" value="19:30">
+              </div>
+              <div>
+                <label>Duração média da refeição (min)</label>
+                <input type="number" id="cfg-meal-duration" value="30" min="0" step="5">
+              </div>
+            </div>
+            <label>Subtramina: minutos antes do almoço</label>
+            <input type="number" id="cfg-sub-before" value="15" min="0" step="5">
+            <label>Syntroid: minutos antes do café</label>
+            <input type="number" id="cfg-syntroid-before" value="30" min="0" step="5">
+          </div>
         </div>
-        <div>
-          <label>Início do trabalho</label>
-          <input type="time" id="cfg-work-start" value="09:00">
+
+        <div class="config-panel" data-panel="notificacoes" style="display:none">
+          <div class="card">
+            <h2>Notificações push (opcional)</h2>
+            <div class="time" style="margin-bottom:8px;">Cole aqui a URL do seu servidor de push (Cloudflare Worker) para receber notificações mesmo com o app fechado.</div>
+            <label>URL do servidor de notificações</label>
+            <input type="text" id="cfg-push-url" placeholder="https://rotina-push.seu-usuario.workers.dev">
+          </div>
+
+          <div class="card">
+            <h2>Resumo diário</h2>
+            <div class="time" style="margin-bottom:8px;">Uma notificação de manhã com o resumo do seu dia. Funciona enquanto o app estiver aberto no navegador (igual às notificações de remédio).</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="cfg-daily-summary-enabled" checked>
+              <label>Ativar resumo diário</label>
+            </div>
+            <label>Horário do resumo</label>
+            <input type="time" id="cfg-daily-summary-time" value="07:00">
+          </div>
+
+          <div class="card">
+            <h2>💧 Lembrete de água</h2>
+            <div class="time" style="margin-bottom:8px;">Notifica de tempos em tempos, entre acordar e dormir, pra você beber água. Funciona enquanto o app estiver aberto no navegador.</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="cfg-water-enabled" checked>
+              <label>Ativar lembrete de água</label>
+            </div>
+            <div class="grid2">
+              <div>
+                <label>Meta de copos por dia</label>
+                <input type="number" id="cfg-water-goal" min="1" max="20" value="8">
+              </div>
+              <div>
+                <label>Intervalo entre lembretes (min)</label>
+                <input type="number" id="cfg-water-interval" min="15" max="360" step="15" value="120">
+              </div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label>Fim do trabalho</label>
-          <input type="time" id="cfg-work-end" value="18:00">
+
+        <div class="config-panel" data-panel="agenda" style="display:none">
+          <div class="card">
+            <h2>Calendário do Google (opcional)</h2>
+            <div class="time" style="margin-bottom:8px;">No Google Calendar: Configurações ⚙️ → clique no seu calendário → "Integrar calendário" → copie o "Endereço secreto em formato iCal" e cole abaixo. A agenda de hoje aparece na aba "Hoje".</div>
+            <label>Link secreto do iCal</label>
+            <input type="text" id="cfg-calendar-ical" placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics">
+          </div>
         </div>
+
+        <div class="config-panel" data-panel="estoque" style="display:none">
+          <div class="card">
+            <h2>Estoque de remédios e vitaminas</h2>
+            <div class="time" style="margin-bottom:8px;">Quantas doses restam de cada um. Desconta 1 automaticamente sempre que você marcar como tomado na aba Remédios.</div>
+            <div id="stock-fields"></div>
+          </div>
+        </div>
+
+        <div class="config-panel" data-panel="personalizacao" style="display:none">
+          <div class="card">
+            <h2>Frases motivacionais</h2>
+            <div class="time" style="margin-bottom:8px;">Adicione frases suas pra aparecerem no topo, junto com as padrão.</div>
+            <label>Nova frase</label>
+            <input type="text" id="cfg-new-phrase" placeholder="Escreva sua frase...">
+            <button class="save-btn" id="btn-add-phrase" type="button" style="margin-top:8px;">Adicionar frase</button>
+            <div id="custom-phrases-list" style="margin-top:12px;"></div>
+          </div>
+        </div>
+
+        <div class="config-panel" data-panel="dados" style="display:none">
+          <div class="card">
+            <h2>Backup dos dados</h2>
+            <div class="time" style="margin-bottom:8px;">Seus dados ficam só neste navegador. Exporte de vez em quando pra não perder tudo se limpar o navegador ou trocar de celular.</div>
+            <button class="save-btn" id="btn-export-backup" type="button">Exportar backup</button>
+            <button class="save-btn" id="btn-import-backup" type="button" style="margin-top:8px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Importar backup</button>
+            <input type="file" id="input-import-backup" accept="application/json" style="display:none;">
+            <button class="save-btn" id="btn-export-csv" type="button" style="margin-top:8px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Exportar histórico (CSV)</button>
+          </div>
+
+          <div class="card">
+            <h2>Relatório de adesão</h2>
+            <div class="time" style="margin-bottom:8px;">Gera um relatório dos últimos 30 dias pra levar ao médico ou terapeuta. Abre a caixa de impressão — escolha "Salvar como PDF".</div>
+            <button class="save-btn" id="btn-generate-report" type="button">Gerar relatório (últimos 30 dias)</button>
+          </div>
+        </div>
+
       </div>
     </div>
 
-    <div class="card">
-      <h2>Terça-feira · terapia</h2>
-      <div class="grid2">
-        <div>
-          <label>Início da terapia</label>
-          <input type="time" id="cfg-therapy-start" value="08:20">
-        </div>
-        <div>
-          <label>Fim da terapia</label>
-          <input type="time" id="cfg-therapy-end" value="09:00">
-        </div>
-      </div>
-      <label>Horário da academia na terça (mais cedo)</label>
-      <input type="time" id="cfg-gym-leave-tue" value="06:30">
-    </div>
-
-    <div class="card">
-      <h2>Suas metas diárias</h2>
-      <label>Estudo (minutos, meta: pelo menos 3x/semana)</label>
-      <input type="number" id="cfg-study-min" value="60" min="0" step="5">
-      <label>Prefiro estudar</label>
-      <select id="cfg-study-pref">
-        <option value="morning">De manhã (antes do trabalho)</option>
-        <option value="evening" selected>À noite (depois do trabalho)</option>
-      </select>
-
-      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Academia (meta: 4x/semana)</div>
-      <label>Horário da academia</label>
-      <input type="time" id="cfg-gym-leave" value="07:00">
-      <div class="grid2">
-        <div>
-          <label>Musculação (min)</label>
-          <input type="number" id="cfg-gym-strength" value="40" min="0" step="5">
-        </div>
-        <div>
-          <label>Cardio (min)</label>
-          <input type="number" id="cfg-gym-cardio" value="20" min="0" step="5">
-        </div>
-      </div>
-
-      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Fim de semana</div>
-      <div class="grid2">
-        <div>
-          <label>Spinning (sábado)</label>
-          <input type="time" id="cfg-spinning-start" value="09:30">
-        </div>
-        <div>
-          <label>Duração (min)</label>
-          <input type="number" id="cfg-spinning-min" value="45" min="0" step="5">
-        </div>
-      </div>
-      <div class="grid2">
-        <div>
-          <label>Caminhada (domingo)</label>
-          <input type="time" id="cfg-walk-start" value="08:00">
-        </div>
-        <div>
-          <label>Duração (min)</label>
-          <input type="number" id="cfg-walk-min" value="45" min="0" step="5">
-        </div>
-      </div>
-
-      <div style="font-weight:700;color:var(--primary);margin:16px 0 4px;">Meditação e práticas</div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="cfg-morning-practice-enabled" checked>
-        <label>Oração ao acordar (antes de levantar)</label>
-      </div>
-      <label>Duração da prática matinal (min)</label>
-      <input type="number" id="cfg-morning-practice-min" value="10" min="0" step="5">
-      <label>Meditação (depois do almoço, minutos)</label>
-      <input type="number" id="cfg-meditation-min" value="10" min="0" step="5">
-      <label>Leitura antes de dormir (minutos, meta: 3x/semana)</label>
-      <input type="number" id="cfg-reading-min" value="20" min="0" step="5">
-
-      <button class="save-btn" id="btn-save-config">Salvar e gerar rotina</button>
-    </div>
-
-    <div class="card">
-      <h2>Refeições (para calcular as vitaminas)</h2>
-      <div class="grid2">
-        <div>
-          <label>Café da manhã</label>
-          <input type="time" id="cfg-meal-breakfast" value="09:00">
-        </div>
-        <div>
-          <label>Almoço</label>
-          <input type="time" id="cfg-meal-lunch" value="12:30">
-        </div>
-        <div>
-          <label>Jantar</label>
-          <input type="time" id="cfg-meal-dinner" value="19:30">
-        </div>
-        <div>
-          <label>Duração média da refeição (min)</label>
-          <input type="number" id="cfg-meal-duration" value="30" min="0" step="5">
-        </div>
-      </div>
-      <label>Subtramina: minutos antes do almoço</label>
-      <input type="number" id="cfg-sub-before" value="15" min="0" step="5">
-      <label>Syntroid: minutos antes do café</label>
-      <input type="number" id="cfg-syntroid-before" value="30" min="0" step="5">
-    </div>
-
-    <div class="card">
-      <h2>Notificações push (opcional)</h2>
-      <div class="time" style="margin-bottom:8px;">Cole aqui a URL do seu servidor de push (Cloudflare Worker) para receber notificações mesmo com o app fechado.</div>
-      <label>URL do servidor de notificações</label>
-      <input type="text" id="cfg-push-url" placeholder="https://rotina-push.seu-usuario.workers.dev">
-    </div>
-
-    <div class="card">
-      <h2>Resumo diário</h2>
-      <div class="time" style="margin-bottom:8px;">Uma notificação de manhã com o resumo do seu dia. Funciona enquanto o app estiver aberto no navegador (igual às notificações de remédio).</div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="cfg-daily-summary-enabled" checked>
-        <label>Ativar resumo diário</label>
-      </div>
-      <label>Horário do resumo</label>
-      <input type="time" id="cfg-daily-summary-time" value="07:00">
-    </div>
-
-    <div class="card">
-      <h2>💧 Lembrete de água</h2>
-      <div class="time" style="margin-bottom:8px;">Notifica de tempos em tempos, entre acordar e dormir, pra você beber água. Funciona enquanto o app estiver aberto no navegador.</div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="cfg-water-enabled" checked>
-        <label>Ativar lembrete de água</label>
-      </div>
-      <div class="grid2">
-        <div>
-          <label>Meta de copos por dia</label>
-          <input type="number" id="cfg-water-goal" min="1" max="20" value="8">
-        </div>
-        <div>
-          <label>Intervalo entre lembretes (min)</label>
-          <input type="number" id="cfg-water-interval" min="15" max="360" step="15" value="120">
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Calendário do Google (opcional)</h2>
-      <div class="time" style="margin-bottom:8px;">No Google Calendar: Configurações ⚙️ → clique no seu calendário → "Integrar calendário" → copie o "Endereço secreto em formato iCal" e cole abaixo. A agenda de hoje aparece na aba "Hoje".</div>
-      <label>Link secreto do iCal</label>
-      <input type="text" id="cfg-calendar-ical" placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics">
-    </div>
-
-    <div class="card">
-      <h2>Estoque de remédios e vitaminas</h2>
-      <div class="time" style="margin-bottom:8px;">Quantas doses restam de cada um. Desconta 1 automaticamente sempre que você marcar como tomado na aba Remédios.</div>
-      <div id="stock-fields"></div>
-    </div>
-
-    <div class="card">
-      <h2>Frases motivacionais</h2>
-      <div class="time" style="margin-bottom:8px;">Adicione frases suas pra aparecerem no topo, junto com as padrão.</div>
-      <label>Nova frase</label>
-      <input type="text" id="cfg-new-phrase" placeholder="Escreva sua frase...">
-      <button class="save-btn" id="btn-add-phrase" type="button" style="margin-top:8px;">Adicionar frase</button>
-      <div id="custom-phrases-list" style="margin-top:12px;"></div>
-    </div>
-
-    <div class="card">
-      <h2>Backup dos dados</h2>
-      <div class="time" style="margin-bottom:8px;">Seus dados ficam só neste navegador. Exporte de vez em quando pra não perder tudo se limpar o navegador ou trocar de celular.</div>
-      <button class="save-btn" id="btn-export-backup" type="button">Exportar backup</button>
-      <button class="save-btn" id="btn-import-backup" type="button" style="margin-top:8px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Importar backup</button>
-      <input type="file" id="input-import-backup" accept="application/json" style="display:none;">
-      <button class="save-btn" id="btn-export-csv" type="button" style="margin-top:8px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Exportar histórico (CSV)</button>
-    </div>
-
-    <div class="card">
-      <h2>Relatório de adesão</h2>
-      <div class="time" style="margin-bottom:8px;">Gera um relatório dos últimos 30 dias pra levar ao médico ou terapeuta. Abre a caixa de impressão — escolha "Salvar como PDF".</div>
-      <button class="save-btn" id="btn-generate-report" type="button">Gerar relatório (últimos 30 dias)</button>
-    </div>
-
-    <div class="card">
-      <div class="time" style="margin-bottom:8px;">Termine por aqui pra salvar tudo que você mudou nesta aba, incluindo as seções acima.</div>
-      <button class="save-btn" id="btn-save-config-bottom" type="button">Salvar e gerar rotina</button>
+    <div class="card" style="margin-top:12px;">
+      <div class="time" style="margin-bottom:8px;">Salva tudo que você mudou em qualquer categoria acima.</div>
+      <button class="save-btn" id="btn-save-config" type="button">Salvar e gerar rotina</button>
     </div>
   </section>
 
@@ -2812,7 +2872,6 @@ function saveConfigFromForm(){
   document.querySelector('nav button[data-tab="hoje"]').click();
 }
 document.getElementById('btn-save-config').addEventListener('click', saveConfigFromForm);
-document.getElementById('btn-save-config-bottom').addEventListener('click', saveConfigFromForm);
 
 // ---------- Tabs ----------
 const ALL_TABS = ['hoje','remedios','config','progresso','compras','terapia'];
@@ -2835,6 +2894,17 @@ document.getElementById('btn-open-settings').addEventListener('click', ()=>{
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   ALL_TABS.forEach(t=>{
     document.getElementById('tab-'+t).style.display = (t==='config') ? '' : 'none';
+  });
+});
+
+// ---------- Menu lateral da aba Configurar ----------
+document.querySelectorAll('.config-nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.config-nav-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.config-panel').forEach(panel=>{
+      panel.style.display = (panel.dataset.panel === btn.dataset.panel) ? '' : 'none';
+    });
   });
 });
 
