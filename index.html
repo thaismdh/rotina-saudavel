@@ -143,7 +143,7 @@
     color:var(--muted);
     margin:10px 0 4px;
   }
-  input[type=time], input[type=number], select{
+  input[type=time], input[type=number], input[type=text], select{
     width:100%;
     padding:9px 10px;
     border-radius:8px;
@@ -251,6 +251,11 @@
   .badge.unlocked{opacity:1;}
   .badge .badge-icon{font-size:1.6rem;}
   .badge .badge-label{font-size:.7rem;color:var(--muted);margin-top:4px;}
+  .shop-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .shop-row:last-child{border-bottom:none;}
+  .shop-row.needed .shop-name{font-weight:700;color:var(--primary);}
+  .shop-name{flex:1;font-size:.95rem;}
+  .shop-qty{width:90px;padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:.85rem;font-family:inherit;}
   #print-report{display:none;}
   .report-day{page-break-inside:avoid;border-bottom:1px solid #ddd;padding:8px 0;}
   .report-day .report-head{display:flex;justify-content:space-between;font-weight:700;}
@@ -279,6 +284,7 @@
   <button data-tab="remedios">Remédios</button>
   <button data-tab="config">Configurar</button>
   <button data-tab="progresso">Progresso</button>
+  <button data-tab="compras">Compras</button>
 </nav>
 
 <main>
@@ -577,6 +583,23 @@
       <h2>Compartilhar progresso</h2>
       <div class="time" style="margin-bottom:8px;">Gera uma imagem com sua constância pra compartilhar onde quiser.</div>
       <button class="save-btn" id="btn-share-progress" type="button">Gerar imagem</button>
+    </div>
+  </section>
+
+  <!-- TAB: COMPRAS -->
+  <section id="tab-compras" style="display:none">
+    <div class="card">
+      <h2>Compras da semana</h2>
+      <div class="time" style="margin-bottom:8px;">Marque o que precisa comprar e anote a quantidade.</div>
+      <div id="shopping-list"></div>
+      <button class="save-btn" id="btn-clear-shopping" type="button" style="margin-top:12px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Limpar lista</button>
+    </div>
+    <div class="card">
+      <h2>Adicionar item</h2>
+      <label>Nome do item</label>
+      <input type="text" id="cfg-new-shopping-item" placeholder="Ex.: azeite">
+      <button class="save-btn" id="btn-add-shopping-item" type="button">Adicionar item</button>
+      <div id="custom-shopping-list" style="margin-top:12px;"></div>
     </div>
   </section>
 
@@ -1353,6 +1376,8 @@ function buildSyncPayload(){
     mood: loadMood(),
     customPhrases: loadCustomPhrases(),
     theme: localStorage.getItem('rotina_theme') || 'dark',
+    shoppingState: loadShoppingState(),
+    shoppingCustom: loadShoppingCustom(),
   };
 }
 
@@ -1366,6 +1391,8 @@ function applySyncedState(state){
   if(state.mood) localStorage.setItem('rotina_mood', JSON.stringify(state.mood));
   if(state.customPhrases) localStorage.setItem('rotina_custom_phrases', JSON.stringify(state.customPhrases));
   if(state.theme) localStorage.setItem('rotina_theme', state.theme);
+  if(state.shoppingState) localStorage.setItem('rotina_shopping_state', JSON.stringify(state.shoppingState));
+  if(state.shoppingCustom) localStorage.setItem('rotina_shopping_custom', JSON.stringify(state.shoppingCustom));
 
   // Re-renderiza tudo com os dados sincronizados, sem disparar um novo push
   // (essas chamadas de render não passam pelas funções save*, então não re-agendam sync).
@@ -1373,6 +1400,8 @@ function applySyncedState(state){
   fillConfigForm();
   renderStockFields();
   renderCustomPhrasesList();
+  renderShoppingList();
+  renderCustomShoppingList();
   renderMood();
   renderNextUp();
   renderSchedule();
@@ -1675,6 +1704,132 @@ document.getElementById('btn-add-phrase').addEventListener('click', ()=>{
   input.value = '';
   renderCustomPhrasesList();
   renderDailyPhrase();
+});
+
+// ---------- Compras da semana ----------
+function slugify(s){
+  return s.toString().normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+}
+
+const SHOPPING_ITEMS = [
+  'Arroz','Feijão','Lentilha','Tilápia','Salmão','Leite de amêndoa','Pipoca',
+  'Macarrão pra sopa','Legumes congelados','Mamão','Banana','Iogurte','Gelatina',
+  'Maçã','Beterraba','Couve','Ovo','Queijo branco',
+];
+
+function loadShoppingCustom(){
+  const raw = localStorage.getItem('rotina_shopping_custom');
+  return raw ? JSON.parse(raw) : [];
+}
+function saveShoppingCustom(list){
+  localStorage.setItem('rotina_shopping_custom', JSON.stringify(list));
+  markDirtyAndSync();
+}
+function loadShoppingState(){
+  const raw = localStorage.getItem('rotina_shopping_state');
+  return raw ? JSON.parse(raw) : {};
+}
+function saveShoppingState(s){
+  localStorage.setItem('rotina_shopping_state', JSON.stringify(s));
+  markDirtyAndSync();
+}
+function allShoppingItems(){
+  return SHOPPING_ITEMS.concat(loadShoppingCustom());
+}
+
+function renderShoppingList(){
+  const el = document.getElementById('shopping-list');
+  if(!el) return;
+  const state = loadShoppingState();
+  const items = allShoppingItems();
+  el.innerHTML = '';
+  items.forEach(name=>{
+    const key = slugify(name);
+    const entry = state[key] || {};
+    const row = document.createElement('div');
+    row.className = 'shop-row' + (entry.needed ? ' needed' : '');
+    row.innerHTML = `
+      <div class="check ${entry.needed?'done':''}" data-key="${key}">${entry.needed?'✓':''}</div>
+      <div class="shop-name">${name}</div>
+      <input type="text" class="shop-qty" data-key="${key}" placeholder="qtd." value="${entry.qty || ''}">
+    `;
+    el.appendChild(row);
+  });
+
+  el.querySelectorAll('.check').forEach(chk=>{
+    chk.addEventListener('click', ()=>{
+      const k = chk.dataset.key;
+      const s = loadShoppingState();
+      if(!s[k]) s[k] = {};
+      s[k].needed = !s[k].needed;
+      saveShoppingState(s);
+      renderShoppingList();
+    });
+  });
+
+  el.querySelectorAll('.shop-qty').forEach(input=>{
+    input.addEventListener('change', ()=>{
+      const k = input.dataset.key;
+      const s = loadShoppingState();
+      if(!s[k]) s[k] = {};
+      s[k].qty = input.value;
+      saveShoppingState(s);
+    });
+  });
+}
+
+function renderCustomShoppingList(){
+  const el = document.getElementById('custom-shopping-list');
+  if(!el) return;
+  const list = loadShoppingCustom();
+  el.innerHTML = '';
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty">Nenhum item extra ainda.</div>';
+    return;
+  }
+  list.forEach((name, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="info"><div class="title" style="font-weight:400;">${name}</div></div>
+      <button class="timer-btn" data-idx="${idx}" type="button">Remover</button>
+    `;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = Number(btn.dataset.idx);
+      const list2 = loadShoppingCustom();
+      const removed = list2.splice(idx, 1)[0];
+      saveShoppingCustom(list2);
+      if(removed){
+        const key = slugify(removed);
+        const s = loadShoppingState();
+        delete s[key];
+        saveShoppingState(s);
+      }
+      renderCustomShoppingList();
+      renderShoppingList();
+    });
+  });
+}
+
+document.getElementById('btn-add-shopping-item').addEventListener('click', ()=>{
+  const input = document.getElementById('cfg-new-shopping-item');
+  const val = input.value.trim();
+  if(!val) return;
+  const list = loadShoppingCustom();
+  list.push(val);
+  saveShoppingCustom(list);
+  input.value = '';
+  renderCustomShoppingList();
+  renderShoppingList();
+});
+
+document.getElementById('btn-clear-shopping').addEventListener('click', ()=>{
+  saveShoppingState({});
+  renderShoppingList();
 });
 
 // ---------- Clima (GPS + Open-Meteo, sem chave de API) ----------
@@ -2418,11 +2573,12 @@ document.querySelectorAll('nav button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    ['hoje','remedios','config','progresso'].forEach(t=>{
+    ['hoje','remedios','config','progresso','compras'].forEach(t=>{
       document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
     });
     if(btn.dataset.tab === 'remedios') renderRemedios();
     if(btn.dataset.tab === 'progresso') renderHeatmap();
+    if(btn.dataset.tab === 'compras') renderShoppingList();
   });
 });
 
@@ -2471,6 +2627,8 @@ initTheme();
 fillConfigForm();
 renderStockFields();
 renderCustomPhrasesList();
+renderShoppingList();
+renderCustomShoppingList();
 setTodayLabel();
 renderDailyPhrase();
 initWeather();
