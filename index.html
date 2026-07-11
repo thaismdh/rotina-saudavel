@@ -355,6 +355,10 @@
       <h2>Agora / a seguir</h2>
       <div id="next-up-content"></div>
     </div>
+    <div class="card" id="low-stock-card" style="display:none;">
+      <h2>⚠️ Estoque baixo</h2>
+      <div id="low-stock-content"></div>
+    </div>
     <div class="card">
       <h2>Como você está hoje?</h2>
       <div class="mood-row" id="mood-row"></div>
@@ -1320,6 +1324,7 @@ function renderNextUp(){
       updateNavBadges();
     });
   }
+  renderLowStockAlert();
 }
 
 // ---------- Rendering: Hoje ----------
@@ -2847,6 +2852,35 @@ function medStockGroups(){
   return groups;
 }
 
+function renderLowStockAlert(){
+  const card = document.getElementById('low-stock-card');
+  const content = document.getElementById('low-stock-content');
+  if(!card || !content) return;
+  const stock = loadStock();
+  const groups = medStockGroups();
+  const low = Object.keys(groups)
+    .filter(key => typeof stock[key] === 'number' && stock[key] <= LOW_STOCK_THRESHOLD)
+    .sort((a,b) => stock[a] - stock[b]);
+  if(low.length === 0){
+    card.style.display = 'none';
+    content.innerHTML = '';
+    return;
+  }
+  card.style.display = '';
+  content.innerHTML = low.map(key => {
+    const qty = stock[key];
+    return `
+      <div class="row" style="border:none;padding:4px 0;">
+        <div class="icon">💊</div>
+        <div class="info">
+          <div class="title">${groups[key]}</div>
+          <div class="time" style="color:var(--danger);font-weight:600;">restam ${qty} ${qty === 1 ? 'dose' : 'doses'}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderStockFields(){
   const el = document.getElementById('stock-fields');
   if(!el) return;
@@ -2877,6 +2911,7 @@ function renderStockFields(){
       saveStock(s);
       renderRemedios();
       renderStockFields();
+      renderLowStockAlert();
     });
   });
 }
