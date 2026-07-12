@@ -344,7 +344,6 @@
   <button data-tab="hoje" class="active"><span class="nav-icon" data-icon="leaf"></span><span>Hoje</span></button>
   <button data-tab="remedios"><span class="nav-icon" data-icon="pill"></span><span>Remédios</span><span class="nav-badge" id="nav-badge-remedios"></span></button>
   <button data-tab="terapia"><span class="nav-icon" data-icon="chat"></span><span>Terapia</span></button>
-  <button data-tab="compras"><span class="nav-icon" data-icon="cart"></span><span>Compras</span><span class="nav-badge" id="nav-badge-compras"></span></button>
   <button data-tab="progresso"><span class="nav-icon" data-icon="chart"></span><span>Progresso</span></button>
 </nav>
 
@@ -800,24 +799,6 @@
       <h2>Compartilhar progresso</h2>
       <div class="time" style="margin-bottom:8px;">Gera uma imagem com sua constância pra compartilhar onde quiser.</div>
       <button class="save-btn" id="btn-share-progress" type="button">Gerar imagem</button>
-    </div>
-  </section>
-
-  <!-- TAB: COMPRAS -->
-  <section id="tab-compras" style="display:none">
-    <div class="card">
-      <h2>Compras da semana</h2>
-      <div class="time" style="margin-bottom:8px;">Marque o que precisa comprar e anote a quantidade.</div>
-      <div id="shopping-list"></div>
-      <button class="save-btn" id="btn-clear-shopping" type="button" style="margin-top:12px;background:var(--card);color:var(--primary);border:1px solid var(--primary);">Limpar lista</button>
-    </div>
-    <div class="card">
-      <h2>Gerenciar itens</h2>
-      <div class="time" style="margin-bottom:8px;">Adicione ou remova qualquer item da lista, inclusive os que já vinham prontos.</div>
-      <label>Nome do item</label>
-      <input type="text" id="cfg-new-shopping-item" placeholder="Ex.: azeite">
-      <button class="save-btn" id="btn-add-shopping-item" type="button">Adicionar item</button>
-      <div id="custom-shopping-list" style="margin-top:12px;"></div>
     </div>
   </section>
 
@@ -1793,8 +1774,6 @@ function applySyncedState(state){
   renderSkincareList();
   renderStockFields();
   renderCustomPhrasesList();
-  renderShoppingList();
-  renderCustomShoppingList();
   renderTherapyJournal();
   renderMood();
   renderSelfcare();
@@ -2128,11 +2107,6 @@ function updateNavBadges(){
   });
   const remBadge = document.getElementById('nav-badge-remedios');
   if(remBadge) remBadge.classList.toggle('show', hasOverdue);
-
-  const shoppingState = loadShoppingState();
-  const hasNeeded = Object.values(shoppingState).some(entry => entry && entry.needed);
-  const comprasBadge = document.getElementById('nav-badge-compras');
-  if(comprasBadge) comprasBadge.classList.toggle('show', hasNeeded);
 }
 
 // ---------- Água ----------
@@ -2419,100 +2393,9 @@ function allShoppingItems(){
   return loadShoppingCustom();
 }
 
-function renderShoppingList(){
-  const el = document.getElementById('shopping-list');
-  if(!el) return;
-  const state = loadShoppingState();
-  const items = allShoppingItems();
-  el.innerHTML = '';
-  items.forEach(name=>{
-    const key = slugify(name);
-    const entry = state[key] || {};
-    const row = document.createElement('div');
-    row.className = 'shop-row' + (entry.needed ? ' needed' : '');
-    row.innerHTML = `
-      <div class="check ${entry.needed?'done':''}" data-key="${key}">${entry.needed?'✓':''}</div>
-      <div class="shop-name">${name}</div>
-      <input type="text" class="shop-qty" data-key="${key}" placeholder="qtd." value="${entry.qty || ''}">
-    `;
-    el.appendChild(row);
-  });
-
-  el.querySelectorAll('.check').forEach(chk=>{
-    chk.addEventListener('click', ()=>{
-      const k = chk.dataset.key;
-      const s = loadShoppingState();
-      if(!s[k]) s[k] = {};
-      s[k].needed = !s[k].needed;
-      saveShoppingState(s);
-      renderShoppingList();
-      updateNavBadges();
-    });
-  });
-
-  el.querySelectorAll('.shop-qty').forEach(input=>{
-    input.addEventListener('change', ()=>{
-      const k = input.dataset.key;
-      const s = loadShoppingState();
-      if(!s[k]) s[k] = {};
-      s[k].qty = input.value;
-      saveShoppingState(s);
-    });
-  });
-}
-
-function renderCustomShoppingList(){
-  const el = document.getElementById('custom-shopping-list');
-  if(!el) return;
-  const list = loadShoppingCustom();
-  el.innerHTML = '';
-  if(list.length === 0){
-    el.innerHTML = '<div class="empty">Nenhum item extra ainda.</div>';
-    return;
-  }
-  list.forEach((name, idx)=>{
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
-      <div class="info"><div class="title" style="font-weight:400;">${name}</div></div>
-      <button class="timer-btn" data-idx="${idx}" type="button">Remover</button>
-    `;
-    el.appendChild(row);
-  });
-  el.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const idx = Number(btn.dataset.idx);
-      const list2 = loadShoppingCustom();
-      const removed = list2.splice(idx, 1)[0];
-      saveShoppingCustom(list2);
-      if(removed){
-        const key = slugify(removed);
-        const s = loadShoppingState();
-        delete s[key];
-        saveShoppingState(s);
-      }
-      renderCustomShoppingList();
-      renderShoppingList();
-    });
-  });
-}
-
-document.getElementById('btn-add-shopping-item').addEventListener('click', ()=>{
-  const input = document.getElementById('cfg-new-shopping-item');
-  const val = input.value.trim();
-  if(!val) return;
-  const list = loadShoppingCustom();
-  list.push(val);
-  saveShoppingCustom(list);
-  input.value = '';
-  renderCustomShoppingList();
-  renderShoppingList();
-});
-
-document.getElementById('btn-clear-shopping').addEventListener('click', ()=>{
-  saveShoppingState({});
-  renderShoppingList();
-});
+// (Aba "Compras" removida. As funções loadShoppingState/loadShoppingCustom
+// acima continuam existindo só pra preservar os dados antigos no sync, caso
+// a seção volte no futuro — mas não há mais UI que as use.)
 
 // ---------- Diário de terapia ----------
 function loadTherapyJournal(){
@@ -3604,7 +3487,7 @@ function saveConfigFromForm(){
 document.getElementById('btn-save-config').addEventListener('click', saveConfigFromForm);
 
 // ---------- Tabs ----------
-const ALL_TABS = ['hoje','remedios','config','progresso','compras','terapia'];
+const ALL_TABS = ['hoje','remedios','config','progresso','terapia'];
 document.querySelectorAll('nav button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
@@ -3614,7 +3497,6 @@ document.querySelectorAll('nav button').forEach(btn=>{
     });
     if(btn.dataset.tab === 'remedios') renderRemedios();
     if(btn.dataset.tab === 'progresso') renderHeatmap();
-    if(btn.dataset.tab === 'compras') renderShoppingList();
     if(btn.dataset.tab === 'terapia') renderTherapyJournal();
   });
 });
@@ -3716,8 +3598,6 @@ renderMedsList();
 renderSkincareList();
 renderStockFields();
 renderCustomPhrasesList();
-renderShoppingList();
-renderCustomShoppingList();
 renderTherapyJournal();
 setTodayLabel();
 renderDailyPhrase();
