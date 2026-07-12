@@ -776,18 +776,6 @@
       <div id="mood-correlation" style="margin-top:12px;font-size:.85rem;color:var(--muted);display:none;"></div>
     </div>
     <div class="card">
-      <h2>Humor nos últimos 7 dias</h2>
-      <div class="bars" id="mood-bars"></div>
-    </div>
-    <div class="card">
-      <h2>Últimos 7 dias</h2>
-      <div class="bars" id="bars"></div>
-    </div>
-    <div class="card">
-      <h2>Últimos 3 meses</h2>
-      <div class="heatmap" id="heatmap"></div>
-    </div>
-    <div class="card">
       <h2>Comparação mensal</h2>
       <div class="bars" id="monthly-bars"></div>
     </div>
@@ -1781,7 +1769,6 @@ function applySyncedState(state){
   renderSchedule();
   renderRemedios();
   renderProgress();
-  renderHeatmap();
   renderTravelToggle();
   renderRestToggle();
   renderCalendar();
@@ -2892,22 +2879,8 @@ function renderProgress(){
     }
   }
 
-  const bars = document.getElementById('bars');
-  bars.innerHTML = '';
-  const last7Rev = [...last7].reverse();
-  const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  last7Rev.forEach(d=>{
-    const pct = completionForDay(d);
-    const col = document.createElement('div');
-    col.className = 'bar-col';
-    const dow = new Date(d+'T12:00:00').getDay();
-    col.innerHTML = `<div class="bar" style="height:${Math.max(4,pct*100)}%"></div><span>${dayNames[dow]}</span>`;
-    bars.appendChild(col);
-  });
-
   renderGoals(history, cfg);
   renderMonthlyChart(cfg, history);
-  renderMoodChart();
   renderBadges(cfg, history);
 
   const corrEl = document.getElementById('mood-correlation');
@@ -2967,35 +2940,6 @@ function renderMonthlyChart(cfg, history){
   });
 }
 
-function renderMoodChart(){
-  const el = document.getElementById('mood-bars');
-  if(!el) return;
-  const mood = loadMood();
-  const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const days = [];
-  const now = new Date();
-  for(let i=6;i>=0;i--){
-    const d = new Date(now);
-    d.setDate(d.getDate()-i);
-    days.push(d);
-  }
-  el.innerHTML = '';
-  days.forEach(d=>{
-    const key = localDateKey(d);
-    const val = mood[key];
-    const col = document.createElement('div');
-    col.className = 'bar-col';
-    const label = dayNames[d.getDay()];
-    if(val){
-      const pct = Math.max(4, (val/5)*100);
-      col.innerHTML = `<div class="bar" style="height:${pct}%;" title="${MOOD_EMOJIS[val-1]} · ${formatDatePtBr(key)}"></div><span>${label}</span>`;
-    } else {
-      col.innerHTML = `<div class="bar" style="height:2%;background:var(--border);" title="sem registro · ${formatDatePtBr(key)}"></div><span>${label}</span>`;
-    }
-    el.appendChild(col);
-  });
-}
-
 const WEEKLY_GOAL_TARGET_CFG_KEYS = { gym: 'gymWeeklyTarget', study: 'studyWeeklyTarget' };
 function renderGoals(history, cfg){
   const el = document.getElementById('goals-list');
@@ -3020,45 +2964,6 @@ function renderGoals(history, cfg){
     `;
     el.appendChild(row);
   });
-}
-
-function renderHeatmap(){
-  const el = document.getElementById('heatmap');
-  if(!el) return;
-  const cfg = loadConfig();
-  const history = loadHistory();
-  const progressStart = loadProgressStart();
-  const DAYS = 84; // ~12 semanas
-  const dates = [];
-  for(let i = DAYS - 1; i >= 0; i--){
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dates.push(localDateKey(d));
-  }
-  const firstDow = new Date(dates[0]+'T12:00:00').getDay();
-  const padded = Array(firstDow).fill(null).concat(dates);
-  el.innerHTML = '';
-  const weekCount = Math.ceil(padded.length / 7);
-  for(let w = 0; w < weekCount; w++){
-    const week = document.createElement('div');
-    week.className = 'heatmap-week';
-    for(let d = 0; d < 7; d++){
-      const dateStr = padded[w*7+d];
-      const cell = document.createElement('div');
-      cell.className = 'heatmap-day';
-      if(dateStr){
-        const pct = dateStr < progressStart ? 0 : computeDayCompletion(cfg, history, dateStr);
-        cell.title = `${dateStr}: ${Math.round(pct*100)}%`;
-        if(pct >= 0.999) cell.style.background = 'var(--primary)';
-        else if(pct >= 0.5) cell.style.background = 'var(--primary-mid)';
-        else if(pct > 0) cell.style.background = 'var(--primary-light)';
-      } else {
-        cell.style.visibility = 'hidden';
-      }
-      week.appendChild(cell);
-    }
-    el.appendChild(week);
-  }
 }
 
 // ---------- Config form ----------
@@ -3478,7 +3383,6 @@ function saveConfigFromForm(){
   renderSchedule();
   renderRemedios();
   renderProgress();
-  renderHeatmap();
   renderCalendar();
   renderStockFields();
   renderWater();
@@ -3496,7 +3400,6 @@ document.querySelectorAll('nav button').forEach(btn=>{
       document.getElementById('tab-'+t).style.display = (t===btn.dataset.tab) ? '' : 'none';
     });
     if(btn.dataset.tab === 'remedios') renderRemedios();
-    if(btn.dataset.tab === 'progresso') renderHeatmap();
     if(btn.dataset.tab === 'terapia') renderTherapyJournal();
   });
 });
@@ -3611,7 +3514,6 @@ renderNextUp();
 renderSchedule();
 renderRemedios();
 renderProgress();
-renderHeatmap();
 renderCalendar();
 renderWater();
 updateNotifStatus();
