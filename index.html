@@ -1823,6 +1823,40 @@ function mergeSyncListFields(localState, serverState){
     Object.keys(deletedIds).forEach(id=> byId.delete(id));
     merged[key] = Array.from(byId.values());
   });
+  merged.history = mergeHistory(localState.history, serverState.history);
+  return merged;
+}
+
+// O "history" (marcações de remédio/rotina feitas por dia + contagem de água)
+// mudava toda hora em qualquer aparelho, mas era sobrescrito por inteiro pelo
+// último push (mesmo esquema "o mais recente ganha" do resto do estado). Isso
+// fazia um aparelho apagar as marcações/água que o OUTRO tinha acabado de
+// registrar, sempre que os dois sincronizavam perto um do outro (ex.: um
+// marcou remédio no celular, o outro registrou humor no notebook — o push do
+// notebook, com timestamp mais novo, sobrescrevia o "history" inteiro com a
+// cópia antiga que ele tinha antes de ver a marcação do celular). Agora fazemos
+// uma união dia a dia: marcação "feita" (true) nunca some por causa do sync, e
+// a contagem de água usa o maior valor entre os dois aparelhos.
+function mergeHistory(localHistory, serverHistory){
+  const merged = {};
+  const dates = new Set([
+    ...Object.keys(localHistory || {}),
+    ...Object.keys(serverHistory || {}),
+  ]);
+  dates.forEach(date=>{
+    const l = (localHistory && localHistory[date]) || {};
+    const s = (serverHistory && serverHistory[date]) || {};
+    const dayKeys = new Set([...Object.keys(l), ...Object.keys(s)]);
+    const day = {};
+    dayKeys.forEach(k=>{
+      if(k === 'water'){
+        day[k] = Math.max(Number(l[k]) || 0, Number(s[k]) || 0);
+      } else {
+        day[k] = (l[k] === true || s[k] === true) ? true : (l[k] !== undefined ? l[k] : s[k]);
+      }
+    });
+    merged[date] = day;
+  });
   return merged;
 }
 
@@ -1916,7 +1950,12 @@ async function pullStateOnLoad(){
     const localUpdatedAt = Number(localStorage.getItem('rotina_state_updated_at')) || 0;
     if(data.updatedAt > localUpdatedAt){
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
-      applySyncedState(data.state);
+      // Faz o merge do "history" (marcações do dia + água) e das listas por id
+      // com o que este aparelho já tinha, em vez de sobrescrever tudo pelo
+      // estado do servidor. Sem isso, uma marcação feita neste aparelho bem na
+      // hora de um pull (ex.: os 60s do polling) podia ser apagada mesmo sendo
+      // mais recente que o que está no servidor.
+      applySyncedState(mergeSyncListFields(data.state, buildSyncPayload()));
     } else if(localUpdatedAt > 0){
       // este aparelho tem mudanças mais novas (feitas offline, por exemplo) — envia pro servidor
       pushStateToServer();
