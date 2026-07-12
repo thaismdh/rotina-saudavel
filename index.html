@@ -412,16 +412,6 @@
       </div>
       <div class="time" style="margin-top:6px;">Funciona enquanto esta aba estiver aberta no navegador.</div>
 
-      <div class="row">
-        <div class="icon">📡</div>
-        <div class="info">
-          <div class="title">Notificação mesmo com o app fechado</div>
-          <div class="time" id="push-status">Não configurado</div>
-        </div>
-        <button class="timer-btn" id="btn-enable-push">Ativar</button>
-      </div>
-      <div class="time" style="margin-top:6px;">Precisa configurar a URL do servidor de push em "Configurar" primeiro.</div>
-
       <div class="checkbox-row" style="margin-top:12px;">
         <input type="checkbox" id="cfg-reminder-sound-enabled" checked>
         <label>Tocar som ao lembrar do remédio</label>
@@ -824,8 +814,6 @@
 </div>
 
 <script>
-const VAPID_PUBLIC_KEY = "BH2Qz5Fz9_z1BFqSsy60BkClOKbx3PPB9ocJ61ObA9DkkflU6E9CA--B2NC2ahlR-bGaJaEb4ylL5SsZAqkamjc";
-
 const DEFAULT_CONFIG = {
   wake: "06:30", sleep: "22:30",
   workStart: "09:00", workEnd: "18:00",
@@ -1675,27 +1663,6 @@ document.getElementById('cfg-reminder-sound-enabled').addEventListener('change',
   if(e.target.checked) playReminderSound();
 });
 
-// ---------- Push (works with the app closed, via a Cloudflare Worker) ----------
-function urlBase64ToUint8Array(base64String){
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for(let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
-  return outputArray;
-}
-
-async function syncConfigToServer(cfg){
-  if(!cfg.pushServerUrl) return;
-  try{
-    await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ config: cfg }),
-    });
-  } catch(e){ /* offline or server not deployed yet; ignore */ }
-}
-
 async function syncDoneToServer(date, key, done){
   const cfg = loadConfig();
   if(!cfg.pushServerUrl) return;
@@ -1706,11 +1673,6 @@ async function syncDoneToServer(date, key, done){
       body: JSON.stringify({ date, key, done }),
     });
   } catch(e){ /* offline or server not deployed yet; ignore */ }
-}
-
-function updatePushStatus(text){
-  const el = document.getElementById('push-status');
-  if(el) el.textContent = text;
 }
 
 // ---------- Sincronizar entre aparelhos (via o mesmo Worker do push) ----------
@@ -1971,43 +1933,6 @@ async function pullStateOnLoad(){
     // liberar o envio pendente com segurança naquele momento.
   }
 }
-
-document.getElementById('btn-enable-push').addEventListener('click', async ()=>{
-  const cfg = loadConfig();
-  if(!cfg.pushServerUrl){
-    alert('Configure a URL do servidor de notificações na aba "Configurar" primeiro.');
-    return;
-  }
-  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
-    alert('Seu navegador não suporta notificações push.');
-    return;
-  }
-  updatePushStatus('Ativando...');
-  try{
-    const perm = await Notification.requestPermission();
-    if(perm !== 'granted'){
-      updatePushStatus('Permissão negada');
-      return;
-    }
-    const reg = await navigator.serviceWorker.ready;
-    let subscription = await reg.pushManager.getSubscription();
-    if(!subscription){
-      subscription = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-    }
-    await fetch(cfg.pushServerUrl.replace(/\/$/, '') + '/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription }),
-    });
-    await syncConfigToServer(cfg);
-    updatePushStatus('Ativado ✓');
-  } catch(err){
-    updatePushStatus('Erro ao ativar (confira a URL do servidor)');
-  }
-});
 
 // ---------- Som do lembrete de remédio ----------
 let __reminderAudioCtx = null;
@@ -3378,7 +3303,6 @@ function saveConfigFromForm(){
     waterIntervalMin: Number(document.getElementById('cfg-water-interval').value) || 120,
   };
   saveConfig(cfg);
-  syncConfigToServer(cfg);
   pushStateToServer(); // envia pro servidor na hora, sem esperar o debounce (evita perder o salvamento se o app for pra segundo plano logo em seguida)
   renderSchedule();
   renderRemedios();
@@ -3531,9 +3455,7 @@ setInterval(pullStateOnLoad, 60000);
 if('serviceWorker' in navigator){
   window.addEventListener('load', async () => {
     try{
-      const reg = await navigator.serviceWorker.register('sw.js');
-      const existing = await reg.pushManager.getSubscription();
-      if(existing) updatePushStatus('Ativado ✓');
+      await navigator.serviceWorker.register('sw.js');
     } catch(e){
       // ignora: service worker exige http/https, nao funciona abrindo o arquivo direto (file://)
     }
