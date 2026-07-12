@@ -777,7 +777,7 @@
       <div id="mood-correlation" style="margin-top:12px;font-size:.85rem;color:var(--muted);display:none;"></div>
     </div>
     <div class="card">
-      <h2>Humor ao longo do tempo</h2>
+      <h2>Humor nos últimos 7 dias</h2>
       <div class="bars" id="mood-bars"></div>
     </div>
     <div class="card">
@@ -3091,7 +3091,7 @@ function renderMoodChart(){
   const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const days = [];
   const now = new Date();
-  for(let i=13;i>=0;i--){
+  for(let i=6;i>=0;i--){
     const d = new Date(now);
     d.setDate(d.getDate()-i);
     days.push(d);
