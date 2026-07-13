@@ -1880,10 +1880,21 @@ async function pushStateToServer(){
       body: JSON.stringify({ state: payload, updatedAt }),
     });
     const data = await res.json();
-    if(data && data.applied === false && data.state){
-      // outro aparelho salvou algo mais recente enquanto isso; adota o dele
+    if(data && data.state){
+      // O servidor pode devolver um estado diferente do que mandamos por dois
+      // motivos: (1) outro aparelho salvou algo mais novo enquanto isso
+      // (applied:false), ou (2) o próprio servidor corrigiu campos sensíveis
+      // como calendarIcalUrl/pushServerUrl que este aparelho tinha vazios
+      // localmente (applied:true, mas com o valor consertado). Sem isso, um
+      // aparelho com esse campo vazio localmente nunca via a correção — ele
+      // ficava reenviando a versão vazia a cada sync, e o servidor reparava
+      // silenciosamente, mas essa correção nunca voltava pra tela desse
+      // aparelho (ex.: a agenda não sincronizava no celular). Agora sempre
+      // adota o que voltou, com merge de history/listas por id pra não perder
+      // nada feito neste aparelho bem na hora do request.
+      const merged = mergeSyncListFields(data.state, buildSyncPayload());
       localStorage.setItem('rotina_state_updated_at', String(data.updatedAt));
-      applySyncedState(data.state);
+      applySyncedState(merged);
     }
   } catch(e){ /* offline ou servidor indisponível; tenta de novo na próxima mudança */ }
 }
