@@ -1,4 +1,4 @@
-const CACHE_NAME = 'floresce-v59';
+const CACHE_NAME = 'floresce-v60';
 const FILES_TO_CACHE = [
   './index.html',
   './manifest.json',
@@ -39,6 +39,19 @@ self.addEventListener('fetch', (event) => {
         return response;
       }).catch(() => caches.match(event.request))
     );
+    return;
+  }
+
+  // Chamadas pro Worker de sincronização (outra origem: /state, /calendar/today,
+  // /done, /config etc.) NUNCA devem passar por esse cache — são dados
+  // dinâmicos que mudam a qualquer momento. Sem essa exclusão, a primeira
+  // resposta ficava guardada aqui e era reaproveitada pra sempre (mesmo com
+  // dado novo no servidor), fazendo o app mostrar humor/água/marcações e a
+  // agenda do dia desatualizados até a próxima atualização de versão do app
+  // esvaziar esse cache por acaso. Só os arquivos do próprio app (mesma
+  // origem) usam a estratégia cache-first abaixo.
+  if (new URL(event.request.url).origin !== self.location.origin) {
+    event.respondWith(fetch(event.request));
     return;
   }
 
